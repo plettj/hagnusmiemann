@@ -3,18 +3,18 @@
 #include <cassert>
 #include <iostream>
 #include <string>
-
-struct Move;
-struct Undo;
+#include <array>
 
 /**
  * The main board class that represents a current board position which is allowed to be ___PSEUDO-LEGAL___
  * (which means that it is either a legal position or a position that arose from a legal position where a side left their king in check, which is illegal)
  * Internally, it represents things using bitboards, which are several fancy unsigned 64 bit integers, where each bit corresponds to a square
  * having a state true or false (like if a knight is on the square or not).
- * As a chessprogramming housekeeping note, we use LERF bitboard convention (little endian rank file), which is enumerated above
- * in the Square/rank/file enums and below in our bitboard implementation.
+ * As a chessprogramming housekeeping note, we use LERF bitboard convention (little endian rank file).
  */ 
+
+class Move;
+
 typedef uint64_t Bitboard;
 class Board {
 public:
@@ -103,11 +103,11 @@ public:
 
    /**
     * LERF (little endian rank file) enumeration for ranks, files, squares, diagonals, et cetera
-    * The little-endianness is somewhat awkward to write out (we write numbers in big endian), but 
+    * The little-endianness is somewhat awkward to write out, but 
     * more than makes up for it with the convenience of ordering it gives.
     * We combine these bit representations with each other using basic binary math to encode squares in an efficient way!
     */
-    enum Rank {
+    enum Rank : uint64_t {
 	Rank1 = 0x00000000000000FFull,
 	Rank2 = 0x000000000000FF00ull,
 	Rank3 = 0x0000000000FF0000ull,
@@ -118,7 +118,7 @@ public:
 	Rank8 = 0xFF00000000000000ull
     };
 
-    enum File {
+    enum File : uint64_t {
 	FileA = 0x0101010101010101ull,
 	FileB = 0x0202020202020202ull,
 	FileC = 0x0404040404040404ull,
@@ -129,13 +129,13 @@ public:
 	FileH = 0x8080808080808080ull
     };
 
-    enum SquareColor {
+    enum SquareColor : uint64_t {
 	LightSquares = 0x55AA55AA55AA55AAull,
 	DarkSquares = 0xAA55AA55AA55AA55ull
     };
 
     //other board LERF mappings that aren't as important (hence no name) but still nice to have
-    enum {
+    enum : uint64_t {
 	a1h8Diagonal = 0x8040201008040201ull,
 	h1a8Diagonal = 0x0102040810204080ull,
 	MainDiagonals = a1h8Diagonal | h1a8Diagonal,
@@ -201,7 +201,18 @@ public:
    
     void setSquare(Color color, Piece piece, Square square);
     static Square squareFromString(const std::string& string);
-
+    
+    /**
+     * Returns whether or not the move was illegal (if it was, it rejects the move)
+     */ 
+    bool applyMove(Move& move);
+    int countLegalMoves();
+    //TODO: plenty of things that help us later can go here
+    //like determining if a move is tactical or not
+    bool isMoveLegal(Move& move);
+    bool isMovePseudoLegal(Move& move);
+    bool wasMostRecentMoveLegal();
+ 
     bool isSquareAttacked(Square square, Color side);
     unsigned long long perftTest(int depth);
 private:
@@ -217,8 +228,6 @@ private:
     Bitboard sides[3];
     //Bitboard for where the king is attacked (TODO: useful later, not implemented now)
     Bitboard kingAttackers;
-    //Bitboard for threats (TODO: useful later, not implemented now)
-    Bitboard threats;
     //Bitboards corresponding to rooks that can castle (non promoted ones)
     Bitboard castlingRooks;
     Bitboard castleMasks[NumSquares];
@@ -229,12 +238,40 @@ private:
     int fullmoves;
     int moveCounter;
     Square enpassantSquare;
+    
+    /**
+     * Some annoying to recompute data for undoing a move
+     */ 
+    struct UndoData {
+        uint64_t positionHash;
+	uint64_t pawnKingHash;
+	Bitboard kingAttackers;
+	Bitboard castlingRooks;
+	Square enpassantSquare;
+	int plies;
+	//TODO: psqt?
+	ColorPiece pieceCaptured;
+    };
+    std::vector<UndoData> undoStack;
 
-   /**
-    * The following are what correspond to the functionality to determine (very efficiently!) if a square is attacked or not.
-    * These are arrays of bitboards corresponding to where we can attack with a piece on a given square.
-    * Kings, Pawns, and Knights are very simple to determine where they can attack (it's a hard and fast rule, they are never blocked by anything). 
-    */
+    void applyLegalMove(Move move);
+    void applyMoveWithUndo(Move& move, UndoData& undo);
+    void applyNormalMoveWithUndo(Move& move, UndoData& undo);
+    void applyCastlingMoveWithUndo(Move& move, UndoData& undo);
+    void applyEnpassantMoveWithUndo(Move& move, UndoData& undo);
+    //TODO: null move would go here
+    /**
+     * This takes the most recent move from the undo stack
+     */ 
+    void revertMostRecent(Move move);
+    void revertMove(Move move, UndoData& undo);
+
+    static void initializeStaticAttacks();
+    /**
+     * The following are what correspond to the functionality to determine (very efficiently!) if a square is attacked or not.
+     * These are arrays of bitboards corresponding to where we can attack with a piece on a given square.
+     * Kings, Pawns, and Knights are very simple to determine where they can attack (it's a hard and fast rule, they are never blocked by anything). 
+     */
     alignas(64) static Bitboard PawnAttack[NumColors][NumSquares]; //these are sided based on direction, since pawns are the only piece that aren't symmetric
     alignas(64) static Bitboard KnightAttack[NumSquares];
     alignas(64) static Bitboard KingAttack[NumSquares];
@@ -254,7 +291,7 @@ private:
      * Citation: For these specific precomputed boards, I (Alex) was given them by Terje Kir, the author of the chess program Weiss in 2020 when I was working on badchessengine,
      * an engine I wrote in 2019/2020.
      */ 
-    static const Bitboard RookHashes[NumSquares] = {
+    static constexpr Bitboard RookHashes[NumSquares] = {
         0xA180022080400230ull, 0x0040100040022000ull, 0x0080088020001002ull, 0x0080080280841000ull, 0x4200042010460008ull, 0x04800A0003040080ull, 0x0400110082041008ull, 0x008000A041000880ull,
         0x10138001A080C010ull, 0x0000804008200480ull, 0x00010011012000C0ull, 0x0022004128102200ull, 0x000200081201200Cull, 0x202A001048460004ull, 0x0081000100420004ull, 0x4000800380004500ull,
         0x0000208002904001ull, 0x0090004040026008ull, 0x0208808010002001ull, 0x2002020020704940ull, 0x8048010008110005ull, 0x6820808004002200ull, 0x0A80040008023011ull, 0x00B1460000811044ull,
@@ -264,7 +301,7 @@ private:
         0x48FFFE99FECFAA00ull, 0x48FFFE99FECFAA00ull, 0x497FFFADFF9C2E00ull, 0x613FFFDDFFCE9200ull, 0xFFFFFFE9FFE7CE00ull, 0xFFFFFFF5FFF3E600ull, 0x0010301802830400ull, 0x510FFFF5F63C96A0ull,
         0xEBFFFFB9FF9FC526ull, 0x61FFFEDDFEEDAEAEull, 0x53BFFFEDFFDEB1A2ull, 0x127FFFB9FFDFB5F6ull, 0x411FFFDDFFDBF4D6ull, 0x0801000804000603ull, 0x0003FFEF27EEBE74ull, 0x7645FFFECBFEA79Eull
     };
-    static const Bitboard BishopHashes[NumSquares] = {
+    static constexpr Bitboard BishopHashes[NumSquares] = {
         0xFFEDF9FD7CFCFFFFull, 0xFC0962854A77F576ull, 0x5822022042000000ull, 0x2CA804A100200020ull, 0x0204042200000900ull, 0x2002121024000002ull, 0xFC0A66C64A7EF576ull, 0x7FFDFDFCBD79FFFFull,
         0xFC0846A64A34FFF6ull, 0xFC087A874A3CF7F6ull, 0x1001080204002100ull, 0x1810080489021800ull, 0x0062040420010A00ull, 0x5028043004300020ull, 0xFC0864AE59B4FF76ull, 0x3C0860AF4B35FF76ull,
         0x73C01AF56CF4CFFBull, 0x41A01CFAD64AAFFCull, 0x040C0422080A0598ull, 0x4228020082004050ull, 0x0200800400E00100ull, 0x020B001230021040ull, 0x7C0C028F5B34FF76ull, 0xFC0A028E5AB4DF76ull,
@@ -294,35 +331,33 @@ private:
     }
 
     //With these, we can do what is necessary to determine all the attacks
-    Bitboard getAllSquareAttackers(Color side, Bitboard occupied, Square square);
-    Bitboard getAllAttackedSquares(Color side, Square square);
+    Bitboard getAllSquareAttackers(Bitboard occupiedBoard, Square square);
     Bitboard getAllKingAttackers();
 
     //Some special things for pawns (their rules are weird)
-    static Bitboard pawnLeftAttacks(Bitboard pawnBoard, Bitboard targets, Color side);
-    static Bitboard pawnRightAttacks(Bitboard pawnBoard, Bitboard targets, Color side);
-    static Bitboard pawnAdvances(Bitboard pawnBoard, Bitboard occupiedBoard, Color side);
-    static Bitboard pawnEnpassantCaptures(Bitboard pawnBoard, Square enpassantSquare, Color side);
+    static Bitboard getPawnLeftAttacks(Bitboard pawnBoard, Bitboard targets, Color side);
+    static Bitboard getPawnRightAttacks(Bitboard pawnBoard, Bitboard targets, Color side);
+    static Bitboard getPawnAdvances(Bitboard pawnBoard, Bitboard occupiedBoard, Color side);
+    static Bitboard getPawnEnpassantCaptures(Bitboard pawnBoard, Square enpassantSquare, Color side);
     
-    static Bitboard getPawnAttacksFromSquare(Color side, Square square);
-    static Bitboard getKnightAttacksFromSquare(Square square);
-    static Bitboard getKingAttacksFromSquare(Square square);
+    //don't need versions of these methods for PKN since they are just simple array accesses
     static Bitboard getBishopAttacksFromSquare(Square square, Bitboard occupiedBoard);
     static Bitboard getRookAttacksFromSquare(Square square, Bitboard occupiedBoard);
     static Bitboard getQueenAttacksFromSquare(Square square, Bitboard occupiedBoard);
+    
+    /**
+     * Tries to set a prospective bitboard square (if coordinates are valid) and does nothing otherwise (this is how we check to make sure things like knights don't go off the side of the edge)
+     */ 
+    static void setBitboardSquare(Bitboard& board, int rank, int file);
 
     //TODO: Write things for SEE and discovered attacks
 
     //For some attack things, we need to consider some fixed size multidimensional arrays.
     //C-style versions of those suck, so let's do something better:
-    template <class T, std::size_t I, std::size_t... J> struct MultiDimensionalArray {
-        using Nested = typename MultiDimensionalArray<T, J...> type;
-	using type = std::array<Nested, I>;
-    };
-    template <class T, std::size_t I> struct MultiDimensionalArray<T, I> {
-        using type = std::array<T, I>;
-    };
+    template <class T, size_t I, size_t J> using MultiArray = std::array<std::array<T, J>, I>;
 
+    static Bitboard calculateRookBishopAttacks(Square square, Bitboard occupiedBoard, const MultiArray<int, 4, 2>& movementDelta);
+    static void populateHashTable(HashEntry* table, Square square, Bitboard hash, const MultiArray<int, 4, 2>& movementDelta);
     /**
      * Some binary utilities (that implementation wise should leverage compiler intrinsics)
      */ 
@@ -341,7 +376,7 @@ private:
     static bool testBit(Bitboard bb, Square bit);
 
     static void debugPrintBitboard(Bitboard bb);
-    
+
 };
 
 #endif
