@@ -2,7 +2,7 @@
 
 Move::Move() : moveBits{0} {}
 
-Move::Move(Board::Square from, Board::Square to, Move::MoveType moveType, Move::MovePromotionType promoType) : moveBits{(uint16_t) (from | (to << 6) | promoType)} { }
+Move::Move(Board::Square from, Board::Square to, Move::MoveType moveType, Move::MovePromotionType promoType) : moveBits{(uint16_t) (from | (to << 6) | (moveType | promoType))} { }
 
 Board::Square Move::getFrom() const {
     return static_cast<Board::Square>(moveBits & 63);

@@ -8,10 +8,11 @@ void TextDisplay::printBoard(Board& board) {
     Board::Color turn = board.getTurn();
 
     out << "   " << "╔" << (!basicPieces ? "═" : "") << "════════════════════════╗" << std::endl;
-    for (int rank = 7; rank >= 0; --rank) {
+    for (int rank = Board::NumRanks - 1; rank >= 0; --rank) {
         out << " ║ ";
-        for (int file = 0; file <= 7; ++file) {
-            Board::Square square = Board::getSquare(rank);
+        for (int file = 0; file < Board::NumFiles; ++file) {
+            std::cerr << rank << std::endl;
+            Board::Square square = Board::getSquare(rank, file);
             Board::ColorPiece piece = board.getPieceAt(square);
             int pieceInt = piece / 4 + piece % 2;
             if (pieceInt == 12) { // blank square

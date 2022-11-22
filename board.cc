@@ -1,58 +1,6 @@
 #include "board.h"
 #include "move.h"
-
-/**
- * The following are what correspond to the functionality to determine (very efficiently!) if a square is attacked or not.
- * These are arrays of bitboards corresponding to where we can attack with a piece on a given square.
- * Kings, Pawns, and Knights are very simple to determine where they can attack (it's a hard and fast rule, they are never blocked by anything). 
- */
-alignas(64) static Bitboard PawnAttack[Board::NumColors][Board::NumSquares]; //these are sided based on direction, since pawns are the only piece that aren't symmetric
-alignas(64) static Bitboard KnightAttack[Board::NumSquares];
-alignas(64) static Bitboard KingAttack[Board::NumSquares];
-/**
- * Bishops and rooks (and queens), on the other hand, are blocked by annoying things called enemy pieces.
- * Now, we could compute this at runtime. But that's slow and bad (no seriously TAs/instructors, if you write a chess program that does that, that's very bad)
- * Thus, we use a strategy called Magic Bitboards.
- * The basic idea is this: Suppose we have a rook on e5. The only possible places it can possibly move are the 5th rank and the e file.
- * Thus, we mask out all other bits except the 5th rank and efile.
- * Then, the other key observation is that a rank like 0001R100, where R is a rook and 1s are pieces on the rank, has the same possible moves
- * as 1111R111, since it being blocked means the other ranks are irrelevant. 
- * So what can we do to take advantage of this? Instead of a full lookup table (like the others), we can do a hashtable, where we _want_ hash collisions
- * whenever two outputs are identical, but CANNOT have hash collisions whenever two outputs are different. 
- * To do this, it more or less involves just taking our simplified masked board, multiplying it by a precomputed board that gives such a hash,
- * and then shifting it as necessary to get the square that is attacked. 
- * Here are our precomputed boards (aligned LERF as in Square).
- * Citation: For these specific precomputed boards, I (Alex) was given them by Terje Kir, the author of the chess program Weiss in 2020 when I was working on badchessengine,
- * an engine I wrote in 2019/2020.
- */ 
-static constexpr Bitboard RookHashes[Board::NumSquares] = {
-    0xA180022080400230ull, 0x0040100040022000ull, 0x0080088020001002ull, 0x0080080280841000ull, 0x4200042010460008ull, 0x04800A0003040080ull, 0x0400110082041008ull, 0x008000A041000880ull,
-    0x10138001A080C010ull, 0x0000804008200480ull, 0x00010011012000C0ull, 0x0022004128102200ull, 0x000200081201200Cull, 0x202A001048460004ull, 0x0081000100420004ull, 0x4000800380004500ull,
-    0x0000208002904001ull, 0x0090004040026008ull, 0x0208808010002001ull, 0x2002020020704940ull, 0x8048010008110005ull, 0x6820808004002200ull, 0x0A80040008023011ull, 0x00B1460000811044ull,
-    0x4204400080008EA0ull, 0xB002400180200184ull, 0x2020200080100380ull, 0x0010080080100080ull, 0x2204080080800400ull, 0x0000A40080360080ull, 0x02040604002810B1ull, 0x008C218600004104ull,
-    0x8180004000402000ull, 0x488C402000401001ull, 0x4018A00080801004ull, 0x1230002105001008ull, 0x8904800800800400ull, 0x0042000C42003810ull, 0x008408110400B012ull, 0x0018086182000401ull,
-    0x2240088020C28000ull, 0x001001201040C004ull, 0x0A02008010420020ull, 0x0010003009010060ull, 0x0004008008008014ull, 0x0080020004008080ull, 0x0282020001008080ull, 0x50000181204A0004ull,
-    0x48FFFE99FECFAA00ull, 0x48FFFE99FECFAA00ull, 0x497FFFADFF9C2E00ull, 0x613FFFDDFFCE9200ull, 0xFFFFFFE9FFE7CE00ull, 0xFFFFFFF5FFF3E600ull, 0x0010301802830400ull, 0x510FFFF5F63C96A0ull,
-    0xEBFFFFB9FF9FC526ull, 0x61FFFEDDFEEDAEAEull, 0x53BFFFEDFFDEB1A2ull, 0x127FFFB9FFDFB5F6ull, 0x411FFFDDFFDBF4D6ull, 0x0801000804000603ull, 0x0003FFEF27EEBE74ull, 0x7645FFFECBFEA79Eull
-};
-static constexpr Bitboard BishopHashes[Board::NumSquares] = {
-    0xFFEDF9FD7CFCFFFFull, 0xFC0962854A77F576ull, 0x5822022042000000ull, 0x2CA804A100200020ull, 0x0204042200000900ull, 0x2002121024000002ull, 0xFC0A66C64A7EF576ull, 0x7FFDFDFCBD79FFFFull,
-    0xFC0846A64A34FFF6ull, 0xFC087A874A3CF7F6ull, 0x1001080204002100ull, 0x1810080489021800ull, 0x0062040420010A00ull, 0x5028043004300020ull, 0xFC0864AE59B4FF76ull, 0x3C0860AF4B35FF76ull,
-    0x73C01AF56CF4CFFBull, 0x41A01CFAD64AAFFCull, 0x040C0422080A0598ull, 0x4228020082004050ull, 0x0200800400E00100ull, 0x020B001230021040ull, 0x7C0C028F5B34FF76ull, 0xFC0A028E5AB4DF76ull,
-    0x0020208050A42180ull, 0x001004804B280200ull, 0x2048020024040010ull, 0x0102C04004010200ull, 0x020408204C002010ull, 0x02411100020080C1ull, 0x102A008084042100ull, 0x0941030000A09846ull,
-    0x0244100800400200ull, 0x4000901010080696ull, 0x0000280404180020ull, 0x0800042008240100ull, 0x0220008400088020ull, 0x04020182000904C9ull, 0x0023010400020600ull, 0x0041040020110302ull,
-    0xDCEFD9B54BFCC09Full, 0xF95FFA765AFD602Bull, 0x1401210240484800ull, 0x0022244208010080ull, 0x1105040104000210ull, 0x2040088800C40081ull, 0x43FF9A5CF4CA0C01ull, 0x4BFFCD8E7C587601ull,
-    0xFC0FF2865334F576ull, 0xFC0BF6CE5924F576ull, 0x80000B0401040402ull, 0x0020004821880A00ull, 0x8200002022440100ull, 0x0009431801010068ull, 0xC3FFB7DC36CA8C89ull, 0xC3FF8A54F4CA2C89ull,
-    0xFFFFFCFCFD79EDFFull, 0xFC0863FCCB147576ull, 0x040C000022013020ull, 0x2000104000420600ull, 0x0400000260142410ull, 0x0800633408100500ull, 0xFC087E8E4BB2F736ull, 0x43FF9E4EF4CA2C89ull
-};
-
-//these are the big arrays storing the actual possibilities
-alignas(64) static Bitboard BishopAttack[0x1480];
-alignas(64) static Bitboard RookAttack[0x19000];
-//these are the hash tables, indexed by square
-alignas(64) static Board::HashEntry BishopTable[Board::NumSquares];
-alignas(64) static Board::HashEntry RookTable[Board::NumSquares];
-static bool staticAttacksInitialized = false;
+#include <algorithm>
 
 Board::Index Board::getFileIndexOfSquare(Board::Square square) {
     assert(square != None);
@@ -152,9 +100,9 @@ bool Board::testBit(Bitboard bb, Board::Square bit) {
 }
 
 void Board::debugPrintBitboard(Bitboard bb) {
-    for(int i = 7; i >= 0; i--) {
-        for(int j = 0; j < 7; j++) {
-	    std::cout << testBit(bb, getSquare(static_cast<Index>(i), static_cast<Index>(j)));
+    for(int i = NumRanks - 1; i >= 0; i--) {
+        for(int j = 0; j < NumFiles; j++) {
+	    std::cout << testBit(bb, getSquare(i, j));
 	}
 	std::cout << std::endl;
     }
@@ -199,7 +147,7 @@ Board::Square Board::squareFromString(const std::string& string) {
     if(string == "-") {
         return None;
     }
-    return getSquare(static_cast<Index>(string[1] - '1'), static_cast<Index>(string[0] - 'a'));
+    return getSquare(string[1] - '1', string[0] - 'a');
 }
 
 Board::Board() : positionHash{0}, pawnKingHash{0}, kingAttackers{0}, castlingRooks{0}, turn{White}, plies{0}, fullmoves{0} {
@@ -213,19 +161,24 @@ Board::Board() : positionHash{0}, pawnKingHash{0}, kingAttackers{0}, castlingRoo
         squares[i] = Empty;
 	    castleMasks[i] = 0;
     }
-    initializeStaticAttacks();
+    //shorter thing to type, who said programmers weren't lazy
+    PrecomputedBinary::getBinary().init();
 }
 
 void Board::setBitboardSquare(Bitboard& board, int rankIndex, int fileIndex) {
-    if(0 <= rankIndex && rankIndex <= NumRanks && 0 <= fileIndex && fileIndex <= NumFiles) {
-        board |= 1ull << getSquare(static_cast<Index>(rankIndex), static_cast<Index>(fileIndex));        
+    if(0 <= rankIndex && rankIndex < NumRanks && 0 <= fileIndex && fileIndex < NumFiles) {
+        board |= 1ull << getSquare(rankIndex, fileIndex);        
     }
 }
 
-void Board::initializeStaticAttacks() {
-    if(staticAttacksInitialized) {
+//Trivial constructor since we super care about Board's constructor body running BEFORE we initialize this
+Board::PrecomputedBinary::PrecomputedBinary() { }
+void Board::PrecomputedBinary::init() {
+    if(hasBeenInitialized) {
         return;
     }
+
+    //Initialize attacks:
     //all possible movements of pieces
     const MultiArray<int, 2, 2> pawnAttackDelta{ std::array<int, 2>{1, -1}, std::array<int, 2>{1, 1} };
     const MultiArray<int, 8, 2> knightMovementDelta{ std::array<int, 2>{-2, -1}, std::array<int, 2>{-2, 1}, std::array<int, 2>{-1, -2}, std::array<int, 2>{-1, 2}, std::array<int, 2>{1, -2}, std::array<int, 2>{1, 2}, std::array<int, 2>{2, -1}, std::array<int, 2>{2, 1} };
@@ -242,33 +195,76 @@ void Board::initializeStaticAttacks() {
     //and if so set the respective bitboard.
 
     for(int square = a1; square <= h8; square++) {
-	Square sq = getSquare(square);
+	    Square sq = getSquare(square);
         for(int direction = 0; direction < 2; direction++) {
-	    setBitboardSquare(PawnAttack[White][square], getRankIndexOfSquare(sq) + pawnAttackDelta[direction][0], getFileIndexOfSquare(sq) + pawnAttackDelta[direction][1]);
-	    setBitboardSquare(PawnAttack[Black][square], getRankIndexOfSquare(sq) - pawnAttackDelta[direction][0], getFileIndexOfSquare(sq) - pawnAttackDelta[direction][1]);
-	    setBitboardSquare(KnightAttack[square], getRankIndexOfSquare(sq) + knightMovementDelta[direction][0], getFileIndexOfSquare(sq) + knightMovementDelta[direction][1]);
-	    setBitboardSquare(KingAttack[square], getRankIndexOfSquare(sq) + kingMovementDelta[direction][0], getFileIndexOfSquare(sq) + kingMovementDelta[direction][1]);
-	}
-	for(int direction = 2; direction < 8; direction++) {
+	        setBitboardSquare(PawnAttack[White][square], getRankIndexOfSquare(sq) + pawnAttackDelta[direction][0], getFileIndexOfSquare(sq) + pawnAttackDelta[direction][1]);
+	        setBitboardSquare(PawnAttack[Black][square], getRankIndexOfSquare(sq) - pawnAttackDelta[direction][0], getFileIndexOfSquare(sq) - pawnAttackDelta[direction][1]);
+	        setBitboardSquare(KnightAttack[square], getRankIndexOfSquare(sq) + knightMovementDelta[direction][0], getFileIndexOfSquare(sq) + knightMovementDelta[direction][1]);
+	        setBitboardSquare(KingAttack[square], getRankIndexOfSquare(sq) + kingMovementDelta[direction][0], getFileIndexOfSquare(sq) + kingMovementDelta[direction][1]);
+        }
+	    for(int direction = 2; direction < 8; direction++) {
             setBitboardSquare(KnightAttack[square], getRankIndexOfSquare(sq) + knightMovementDelta[direction][0], getFileIndexOfSquare(sq) + knightMovementDelta[direction][1]);
-	    setBitboardSquare(KingAttack[square], getRankIndexOfSquare(sq) + kingMovementDelta[direction][0], getFileIndexOfSquare(sq) + kingMovementDelta[direction][1]);
-	}
+	        setBitboardSquare(KingAttack[square], getRankIndexOfSquare(sq) + kingMovementDelta[direction][0], getFileIndexOfSquare(sq) + kingMovementDelta[direction][1]);
+	    }
         populateHashTable(BishopTable, sq, BishopHashes[sq], bishopMovementDelta);
-	populateHashTable(RookTable, sq, RookHashes[sq], rookMovementDelta);
+	    populateHashTable(RookTable, sq, RookHashes[sq], rookMovementDelta);
+    }
+    //Initialize masks (depend on attacks being done)
+    for(int square1 = a1; square1 <= h8; square1++) {
+        for(int square2 = a1; square2 <= h8; square2++) {
+            //Align this on rank/file if the squares are straight away
+            if(testBit(getRookAttacksFromSquare(getSquare(square1), 0), getSquare(square2))) {
+                BetweenSquaresMasks[square1][square2] = getRookAttacksFromSquare(getSquare(square1), 1ull << square2) & getRookAttacksFromSquare(getSquare(square2), 1ull << square1);
+            }
+            //Align this on diagonal if the squares are diagonally away
+            if(testBit(getBishopAttacksFromSquare(getSquare(square1), 0), getSquare(square2))) {
+                BetweenSquaresMasks[square1][square2] = getBishopAttacksFromSquare(getSquare(square1), 1ull << square2) & getBishopAttacksFromSquare(getSquare(square2), 1ull << square1);
+            }
+        }
     }
 
-    staticAttacksInitialized = true;
+    //Populate masks that indicate adjacent files
+    for(int file = 0; file < NumFiles; file++) {
+        //The max and min deal with the edge case (literally)
+        //And we don't include the current file
+        AdjacentFilesMasks[file] = getFile(std::max(0, file - 1));
+        AdjacentFilesMasks[file] |= getFile(std::min(NumFiles - 1, file + 1));
+        AdjacentFilesMasks[file] &= ~getFile(file);
+    }
+
+    hasBeenInitialized = true;
 }
 
-Bitboard Board::getBishopAttacksFromSquare(Board::Square square, Bitboard occupiedBoard) {
+Bitboard Board::PrecomputedBinary::getBetweenSquaresMask(Board::Square square1, Board::Square square2) {
+    assert(square1 != None && square2 != None);
+    return BetweenSquaresMasks[square1][square2];
+}
+
+Bitboard Board::PrecomputedBinary::getAdjacentFilesMask(Board::Index fileIndex) {
+    return AdjacentFilesMasks[fileIndex];
+}
+
+Bitboard Board::PrecomputedBinary::getKnightAttacksFromSquare(Board::Square square) {
+    return KnightAttack[square];
+}
+
+Bitboard Board::PrecomputedBinary::getKingAttacksFromSquare(Board::Square square) {
+    return KingAttack[square];
+}
+
+Bitboard Board::PrecomputedBinary::getPawnAttacksFromSquare(Board::Square square, Board::Color side) {
+    return PawnAttack[side][square];
+}
+
+Bitboard Board::PrecomputedBinary::getBishopAttacksFromSquare(Board::Square square, Bitboard occupiedBoard) {
     return BishopTable[square].offset[computeHashTableIndex(occupiedBoard, BishopTable[square])];
 }
 
-Bitboard Board::getRookAttacksFromSquare(Board::Square square, Bitboard occupiedBoard) {
+Bitboard Board::PrecomputedBinary::getRookAttacksFromSquare(Board::Square square, Bitboard occupiedBoard) {
     return RookTable[square].offset[computeHashTableIndex(occupiedBoard, RookTable[square])];
 }
 
-Bitboard Board::getQueenAttacksFromSquare(Board::Square square, Bitboard occupiedBoard) {
+Bitboard Board::PrecomputedBinary::getQueenAttacksFromSquare(Board::Square square, Bitboard occupiedBoard) {
     return getBishopAttacksFromSquare(square, occupiedBoard) | getRookAttacksFromSquare(square, occupiedBoard);
 }
 
@@ -286,16 +282,16 @@ Bitboard Board::getPawnAdvances(Bitboard pawnBoard, Bitboard occupiedBoard, Boar
 
 Bitboard Board::getPawnEnpassantCaptures(Bitboard pawnBoard, Board::Square enpassantSquare, Color side) {
     Color inverseSide = side == White ? Black : White;
-    return enpassantSquare == None ? 0 : PawnAttack[inverseSide][enpassantSquare] & pawnBoard;
+    return enpassantSquare == None ? 0 : PrecomputedBinary::getBinary().getPawnAttacksFromSquare(enpassantSquare, inverseSide) & pawnBoard;
 }
 
 Bitboard Board::getAllSquareAttackers(Bitboard occupiedBoard, Board::Square square) {
-    return (PawnAttack[White][square] & sides[Black] & pieces[Pawn])
-	   | (PawnAttack[Black][square] & sides[White] & pieces[Pawn])
-	   | (KnightAttack[square] & pieces[Knight])
-	   | (getBishopAttacksFromSquare(square, occupiedBoard) & (pieces[Bishop] | pieces[Queen]))
-	   | (getRookAttacksFromSquare(square, occupiedBoard) & (pieces[Rook] | pieces[Rook]))
-	   | (KingAttack[square] & pieces[King]);
+    return (PrecomputedBinary::getBinary().getPawnAttacksFromSquare(square, White) & sides[Black] & pieces[Pawn])
+	   | (PrecomputedBinary::getBinary().getPawnAttacksFromSquare(square, Black) & sides[White] & pieces[Pawn])
+	   | (PrecomputedBinary::getBinary().getKnightAttacksFromSquare(square) & pieces[Knight])
+	   | (PrecomputedBinary::getBinary().getBishopAttacksFromSquare(square, occupiedBoard) & (pieces[Bishop] | pieces[Queen]))
+	   | (PrecomputedBinary::getBinary().getRookAttacksFromSquare(square, occupiedBoard) & (pieces[Rook] | pieces[Rook]))
+	   | (PrecomputedBinary::getBinary().getKingAttacksFromSquare(square) & pieces[King]);
 }
 
 Bitboard Board::getAllKingAttackers() {
@@ -316,7 +312,11 @@ bool Board::isSquareAttacked(Square square, Board::Color side) {
     Bitboard enemyKings = enemyPieces & pieces[King];
 
     //avoid doing hash lookups via short circuit if we can
-    return (PawnAttack[side][square] & enemyPawns) || (KnightAttack[square] & enemyKnights) || (KingAttack[square] & enemyKings) || (enemyBishops != 0 && (getBishopAttacksFromSquare(square, occupiedBoard) & enemyBishops)) || (enemyRooks != 0 && (getRookAttacksFromSquare(square, occupiedBoard) & enemyRooks));
+    return (PrecomputedBinary::getBinary().getPawnAttacksFromSquare(square, side) & enemyPawns) 
+    || (PrecomputedBinary::getBinary().getKnightAttacksFromSquare(square) & enemyKnights) 
+    || (PrecomputedBinary::getBinary().getKingAttacksFromSquare(square) & enemyKings) 
+    || (enemyBishops != 0 && (PrecomputedBinary::getBinary().getBishopAttacksFromSquare(square, occupiedBoard) & enemyBishops)) 
+    || (enemyRooks != 0 && (PrecomputedBinary::getBinary().getRookAttacksFromSquare(square, occupiedBoard) & enemyRooks));
 }
 
 
@@ -334,49 +334,47 @@ void Board::setSquare(Color side, Piece piece, Square square) {
 
 Board Board::createBoardFromFEN(std::string fen) {
     Board board;
-    Square square = a8;
-
-    Bitboard rooks;
-    Bitboard kings;
-    Bitboard white;
-    Bitboard black;
+    int square = a8;
     
     std::string token = fen.substr(0, fen.find(" "));
     for(char& c : token) {
         if(std::isdigit(c)) {
-	    square = getSquare(square + c - '0');
-	} else if(c == '/') {
-	    square = getSquare(square - 16);
-	} else {
-        Color color = std::islower(c) ? Black : White;
-	    Piece piece;
-        switch(std::toupper(c)) {
-	        case 'P':
-		    piece = Pawn;
-		    break;
-		case 'N':
-		    piece = Knight;
-		    break;
-		case 'B':
-		    piece = Bishop;
-		    break;
-		case 'R':
-		    piece = Rook;
-		    break;
-		case 'Q':
-		    piece = Queen; 
-		    break;
-		case 'K':
-		    piece = King;
-		    break;
-		default:
-		    std::cerr << "hey you suck this isn't a chess piece give me a real chess piece" << std::endl;
-		    return board;    
+            //in FEN, a digit in this place corresponds to skipping that many positions
+	        square += c - '0';
+	    } else if(c == '/') {
+            //go down a rank
+	        square -= 2 * NumRanks;
+	    } else {
+            //place a piece
+            Color color = std::islower(c) ? Black : White;
+	        Piece piece;
+            switch(std::toupper(c)) {
+	            case 'P':
+		            piece = Pawn;
+		            break;
+		        case 'N':
+		            piece = Knight;
+		            break;
+		        case 'B':
+		            piece = Bishop;
+		            break;
+		        case 'R':
+		            piece = Rook;
+		            break;
+		        case 'Q':
+		            piece = Queen; 
+		            break;
+		        case 'K':
+		            piece = King;
+		            break;
+		        default:
+		            std::cerr << "hey you suck this isn't a chess piece give me a real chess piece" << std::endl;
+		            return board;    
+	        }
+            board.setSquare(color, piece, getSquare(square));
+	        //this won't overflow under the assumption the FEN is well-formed (since a / should follow)
+            square++;   
 	    }
-        board.setSquare(color, piece, square);
-	    //this won't overflow under the assumption the FEN is well-formed
-            square = getSquare(square + 1);	    
-	}
     }
     fen.erase(0, fen.find(" ") + 1);
     token = fen.substr(0, fen.find(" "));
@@ -385,34 +383,30 @@ Board Board::createBoardFromFEN(std::string fen) {
     
     fen.erase(0, fen.find(" ") + 1);
     token = fen.substr(0, fen.find(" "));
-    rooks = board.pieces[Rook];
-    kings = board.pieces[King];
-    white = board.sides[White];
-    black = board.sides[Black];
     //castling rights
     for(char& c : token) {
         if(c == 'K') {
-	    setBit(board.castlingRooks, getSquare(getMsb(white & rooks & Rank1))); 
-	} else if(c == 'Q') {
-	    setBit(board.castlingRooks, getSquare(getLsb(white & rooks & Rank1)));
-	} else if(c == 'k') {
-	    setBit(board.castlingRooks, getSquare(getMsb(black & rooks & Rank8)));
-	} else if(c == 'q') {
-	    setBit(board.castlingRooks, getSquare(getLsb(black & rooks & Rank8)));
-	}
+	        setBit(board.castlingRooks, getSquare(getMsb(board.sides[White] & board.pieces[Rook] & Rank1))); 
+	    } else if(c == 'Q') {
+	        setBit(board.castlingRooks, getSquare(getLsb(board.sides[White] & board.pieces[Rook] & Rank1)));
+	    } else if(c == 'k') {
+	        setBit(board.castlingRooks, getSquare(getMsb(board.sides[Black] & board.pieces[Rook] & Rank8)));
+	    } else if(c == 'q') {
+	        setBit(board.castlingRooks, getSquare(getLsb(board.sides[Black] & board.pieces[Rook] & Rank8)));
+	    }
     }
 
     //Create a bit mask of where the kings and rooks are
     for(int sq = 0; sq < NumSquares; sq++) {
-	Square s = getSquare(sq);
+	    Square s = getSquare(sq);
         board.castleMasks[s] = ~0ull;
-	if(board.testBit(board.castlingRooks, s)) {
-	    clearBit(board.castleMasks[sq], s);
-	} else if(board.testBit(white & kings, s)) {
-	    board.castleMasks[sq] &= ~white;
-	} else if(board.testBit(black & kings, s)) {
-	    board.castleMasks[sq] &= ~black;
-	}
+	    if(board.testBit(board.castlingRooks, s)) {
+	        clearBit(board.castleMasks[sq], s);
+	    } else if(board.testBit(board.sides[White] & board.pieces[King], s)) {
+	        board.castleMasks[sq] &= ~board.sides[White];
+	    } else if(board.testBit(board.sides[Black] & board.pieces[King], s)) {
+	        board.castleMasks[sq] &= ~board.sides[Black];
+	    }
     }
 
     //TODO: hash here probably (reset the rooks bits)
@@ -431,7 +425,7 @@ Board Board::createBoardFromFEN(std::string fen) {
     token = fen.substr(0, fen.find(" "));
     board.fullmoves = std::stoi(token);
 
-    //TODO: Set kingAttackers
+    board.kingAttackers = board.getAllKingAttackers();
     return board;
 }
 
@@ -440,11 +434,11 @@ std::string Board::getFEN() const {
 }
 
 Board::ColorPiece Board::getPieceAt(Square square) const {
-    assert(square != Empty);
+    assert(square != None);
     return squares[square];
 };
 Board::Square Board::getKing() const {
-    return static_cast<Square>(getLsb(pieces[King] & sides[turn]));
+    return getSquare(getLsb(pieces[King] & sides[turn]));
 };
 Board::Color Board::getTurn() const {
     return turn;
@@ -455,26 +449,25 @@ unsigned long long Board::perftTest(int depth) {
     return 0;
 }
 
-//TODO: Attacks, then moves, then move generation, then verify perft
-Bitboard Board::calculateRookBishopAttacks(Square square, Bitboard occupiedBoard, const MultiArray<int, 4, 2>& movementDelta) {
+Bitboard Board::PrecomputedBinary::calculateRookBishopAttacks(Square square, Bitboard occupiedBoard, const MultiArray<int, 4, 2>& movementDelta) {
     Bitboard result = 0;
     for(int i = 0; i < 4; i++) {
         int rankChange = movementDelta[i][0];
-	int fileChange = movementDelta[i][1];
+	    int fileChange = movementDelta[i][1];
 
-	for(int rankIndex = getRankIndexOfSquare(square) + rankChange, fileIndex = getFileIndexOfSquare(square) + fileChange; 0 <= rankIndex && rankIndex <= NumRanks && 0 <= fileIndex && fileIndex <= NumFiles; rankIndex += rankChange, fileIndex += fileChange) {
-	    //in the direction we move, add a bit to the bitboard
-	    setBit(result, getSquare(static_cast<Index>(rankIndex), static_cast<Index>(fileIndex)));
-	    //stop if we hit something that blocks us
-	    if(testBit(occupiedBoard, getSquare(static_cast<Index>(rankIndex), static_cast<Index>(fileIndex)))) {
-	        break;
+	    for(int rankIndex = getRankIndexOfSquare(square) + rankChange, fileIndex = getFileIndexOfSquare(square) + fileChange; 0 <= rankIndex && rankIndex < NumRanks && 0 <= fileIndex && fileIndex < NumFiles; rankIndex += rankChange, fileIndex += fileChange) {
+	        //in the direction we move, add a bit to the bitboard
+	        setBit(result, getSquare(rankIndex, fileIndex));
+	        //stop if we hit something that blocks us
+	        if(testBit(occupiedBoard, getSquare(rankIndex, fileIndex))) {
+	            break;
+	        }
 	    }
-	}
     }
     return result;
 }
 
-void Board::populateHashTable(HashEntry* table, Square square, Bitboard hash, const MultiArray<int, 4, 2>& movementDelta) {
+void Board::PrecomputedBinary::populateHashTable(HashEntry* table, Square square, Bitboard hash, const MultiArray<int, 4, 2>& movementDelta) {
     Bitboard occupiedBoard = 0;
 
     table[square].hash = hash;
@@ -493,8 +486,26 @@ void Board::populateHashTable(HashEntry* table, Square square, Bitboard hash, co
     } while(occupiedBoard != 0);
 }
 
+bool Board::applyMove(Move& move) {
+    undoStack.emplace_back();
+    applyMoveWithUndo(move, undoStack.back());
+    if(!didLastMoveLeaveInCheck()) {
+        revertMove(move, undoStack.back());
+        undoStack.pop_back();
+        return false;
+    }
+    return true;
+}
+
+bool Board::didLastMoveLeaveInCheck() {
+    Square kingSquare = getSquare(getLsb(sides[turn == White ? Black : White] & pieces[King]));
+    return isSquareAttacked(kingSquare, turn == White ? Black : White);
+}
+
 void Board::applyLegalMove(Move& move) {
-    
+    undoStack.emplace_back();
+    applyMoveWithUndo(move, undoStack.back());
+    assert(!didLastMoveLeaveInCheck());
 }
 
 void Board::applyMoveWithUndo(Move& move, UndoData& undo) {
@@ -519,7 +530,8 @@ void Board::applyMoveWithUndo(Move& move, UndoData& undo) {
 	    applyEnpassantMoveWithUndo(move, undo);
 	    break;
 	case Move::MoveType::Promotion:
-	    applyPromotionMoveWithUndo(move, undo);    
+	    applyPromotionMoveWithUndo(move, undo);  
+        break;  
     }
 
     //if the enpassant square was not updated (i.e. no 2 pawn forward move was played),
@@ -561,8 +573,10 @@ void Board::applyNormalMoveWithUndo(Move& move, UndoData& undo) {
     //psqt and hash
 
     //if we move 2 forward, set enpassant data
-    if(fromType == Pawn && (move.getTo() ^ move.getFrom()) == 16) {
-        //TODO: need adjacent file mask
+    if(fromType == Pawn && (move.getTo() ^ move.getFrom()) == 16
+    && 0 != (pieces[Pawn] & sides[turn == White ? Black : White] & PrecomputedBinary::getBinary().getAdjacentFilesMask(getFileIndexOfSquare(move.getFrom())) & (turn == White ? Rank4 : Rank5))) {
+        enpassantSquare = getSquare(turn == White ? from + 8 : from - 8);
+        //TODO: hash
     }
 }
 
@@ -644,6 +658,7 @@ void Board::applyPromotionMoveWithUndo(Move& move, Board::UndoData& undo) {
 void Board::revertMostRecent(Move& move) {
     //todo: Add stuff here for NMP
     revertMove(move, undoStack.back());
+    undoStack.pop_back();
 }
 
 void Board::revertMove(Move& move, UndoData& undo) {
@@ -740,45 +755,219 @@ bool Board::isMovePseudoLegal(Move& move) {
 
 
     if(fromType == Knight) {
-        return move.getMoveType() == Move::MoveType::Normal && testBit(KnightAttack[move.getFrom()] & ~sides[turn], move.getTo());
+        return move.getMoveType() == Move::MoveType::Normal && testBit(PrecomputedBinary::getBinary().getKnightAttacksFromSquare(move.getFrom()) & ~sides[turn], move.getTo());
     }
     if(fromType == Bishop) {
-        return move.getMoveType() == Move::MoveType::Normal && testBit(getBishopAttacksFromSquare(move.getFrom(), occupiedBoard), move.getTo());
+        return move.getMoveType() == Move::MoveType::Normal && testBit(PrecomputedBinary::getBinary().getBishopAttacksFromSquare(move.getFrom(), occupiedBoard), move.getTo());
     }
     if(fromType == Rook) {
-        return move.getMoveType() == Move::MoveType::Normal && testBit(getRookAttacksFromSquare(move.getFrom(), occupiedBoard), move.getTo());
+        return move.getMoveType() == Move::MoveType::Normal && testBit(PrecomputedBinary::getBinary().getRookAttacksFromSquare(move.getFrom(), occupiedBoard), move.getTo());
     }
     if(fromType == Queen) {
-        return move.getMoveType() == Move::MoveType::Normal && testBit(getQueenAttacksFromSquare(move.getFrom(), occupiedBoard), move.getTo());
+        return move.getMoveType() == Move::MoveType::Normal && testBit(PrecomputedBinary::getBinary().getQueenAttacksFromSquare(move.getFrom(), occupiedBoard), move.getTo());
     }
     if(fromType == King && move.getMoveType() == Move::MoveType::Normal) {
-        return testBit(KingAttack[move.getFrom()] & ~sides[turn], move.getTo());
+        return testBit(PrecomputedBinary::getBinary().getKingAttacksFromSquare(move.getFrom()) & ~sides[turn], move.getTo());
     }
     if(fromType == Pawn) {
         if(move.getMoveType() == Move::MoveType::Enpassant) {
-            return move.getTo() == enpassantSquare && testBit(PawnAttack[turn][move.getFrom()], move.getTo());
+            return move.getTo() == enpassantSquare && testBit(PrecomputedBinary::getBinary().getPawnAttacksFromSquare(move.getFrom(), turn), move.getTo());
         }
 
         Bitboard pawnAdvance = getPawnAdvances(1ull << move.getFrom(), occupiedBoard, turn);
 
         if(move.getMoveType() == Move::MoveType::Promotion) {
-            return testBit(LastRanks & ((PawnAttack[turn][move.getFrom()] & sides[turn == White ? Black : White]) | pawnAdvance), move.getTo());
+            return testBit(LastRanks & ((PrecomputedBinary::getBinary().getPawnAttacksFromSquare(move.getFrom(), turn) & sides[turn == White ? Black : White]) | pawnAdvance), move.getTo());
         }
         //Alright, not enpassant or promotion, must be normal.
         //This includes 2 forward at start, so add those by including the 3rd rank as a starting point for a forward pawn move 
         pawnAdvance |= getPawnAdvances(pawnAdvance & (turn == White ? Rank3 : Rank6), occupiedBoard, turn);
 
-        return testBit(~LastRanks & ((PawnAttack[turn][move.getFrom()] & sides[turn == White ? Black : White]) | pawnAdvance), move.getTo());
+        return testBit(~LastRanks & ((PrecomputedBinary::getBinary().getPawnAttacksFromSquare(move.getFrom(), turn) & sides[turn == White ? Black : White]) | pawnAdvance), move.getTo());
     }
     //must be castling (we ruled out king normals above)
     if(move.getMoveType() != Move::MoveType::Castle) {
         return false;
     }
-
+    //To castle, we must not be in check
+    if(kingAttackers != 0) {
+        return false;
+    }
+    //iterate through all the possible rooks on the board to see if they were the one that was castled with
+    Bitboard rookCopy = sides[turn] & castlingRooks;
+    while(rookCopy != 0) {
+        Square rookFrom = getSquare(popLsb(rookCopy));
+        //Castling is encoded as the rook's square being the king's destination
+        if(rookFrom != move.getTo()) {
+            return false;
+        }
+        //Alright, we know this rook matches what we have.
+        Square rookTo = getRookCastlingSquare(move.getFrom(), rookFrom);
+        Square kingTo = getKingCastlingSquare(move.getFrom(), rookFrom);
+        
+        //Check if we went through stuff
+        Bitboard between = PrecomputedBinary::getBinary().getBetweenSquaresMask(move.getFrom(), kingTo) | (1ull << kingTo)
+                            | PrecomputedBinary::getBinary().getBetweenSquaresMask(rookFrom, rookTo) | (1ull << rookTo);
+        between &= ~((1ull << move.getFrom()) | (1ull << rookFrom));
+        if((occupiedBoard & between) != 0) {
+            return 0; //we went through stuff
+        }
+        Bitboard kingTravelSquares = PrecomputedBinary::getBinary().getBetweenSquaresMask(move.getFrom(), kingTo);
+        while(kingTravelSquares != 0) {
+            if(isSquareAttacked(getSquare(popLsb(kingTravelSquares)), turn)) {
+                return 0; //we went through check
+            }
+        }
+        //we did a totally legal castling move
+        return true;
+    }
+    return false;
 }
 
 bool Board::isMoveLegal(Move& move) {
     Color previousTurn = turn == White ? Black : White;
     Square kingSquare = getSquare(getLsb(pieces[King] & sides[previousTurn]));
     return isMovePseudoLegal(move) && !isSquareAttacked(kingSquare, previousTurn);
+}
+
+void Board::addEnpassantMoves(std::vector<Move>& moveList, Bitboard sources, Square enpassantSquare) {
+    while(sources != 0) {
+        moveList.emplace_back(getSquare(popLsb(sources)), enpassantSquare, Move::MoveType::Enpassant);
+    }
+}
+
+void Board::addPawnMoves(std::vector<Move>& moveList, Bitboard targets, int directionPawnIsIn) {
+    while(targets != 0) {
+        Square square = getSquare(popLsb(targets));
+        moveList.emplace_back(getSquare(square + directionPawnIsIn), square, Move::MoveType::Normal);
+    }
+}
+
+void Board::addPawnPromotions(std::vector<Move>& moveList, Bitboard targets, int directionPawnIsIn) {
+    while(targets != 0) {
+        Square square = getSquare(popLsb(targets));
+        //bias our move ordering QNRB since that's the most likely order of promotions (a moral victory, there is a 0% chance this has impact on playing strength)
+        moveList.emplace_back(getSquare(square + directionPawnIsIn), square, Move::MoveType::Promotion, Move::MovePromotionType::PromoteQueen);
+        moveList.emplace_back(getSquare(square + directionPawnIsIn), square, Move::MoveType::Promotion, Move::MovePromotionType::PromoteKnight);
+        moveList.emplace_back(getSquare(square + directionPawnIsIn), square, Move::MoveType::Promotion, Move::MovePromotionType::PromoteRook);
+        moveList.emplace_back(getSquare(square + directionPawnIsIn), square, Move::MoveType::Promotion, Move::MovePromotionType::PromoteBishop);
+    }
+}
+
+void Board::addNormalMoves(std::vector<Move>& moveList, Bitboard targets, Square from) {
+    while(targets != 0) {
+        moveList.emplace_back(from, getSquare(popLsb(targets)), Move::MoveType::Normal);
+    }
+}
+
+void Board::addNonPawnNormalMoves(std::vector<Move>& moveList, Piece type, Bitboard targets, Bitboard sources, Bitboard occupiedBoard) {
+    assert(type != Pawn && type != Queen); //queen should be given separately as rook and bishop
+
+    //Have the switch on the outside of the loops so we don't have to rely on branch prediction not being dumb
+    switch(type) {
+        case King: {
+            while(sources != 0) {
+                Square fromSquare = getSquare(popLsb(sources));
+                addNormalMoves(moveList, PrecomputedBinary::getBinary().getKingAttacksFromSquare(fromSquare) & targets, fromSquare);
+            }
+            break;
+        }
+        case Knight: {
+            while(sources != 0) {
+                Square fromSquare = getSquare(popLsb(sources));
+                addNormalMoves(moveList, PrecomputedBinary::getBinary().getKnightAttacksFromSquare(fromSquare) & targets, fromSquare);
+            }
+            break;
+        }
+        case Bishop: {
+            while(sources != 0) {
+                Square fromSquare = getSquare(popLsb(sources));
+                addNormalMoves(moveList, PrecomputedBinary::getBinary().getBishopAttacksFromSquare(fromSquare, occupiedBoard) & targets, fromSquare);
+            }
+            break;
+        }
+        case Rook: {
+            while(sources != 0) {
+                Square fromSquare = getSquare(popLsb(sources));
+                addNormalMoves(moveList, PrecomputedBinary::getBinary().getRookAttacksFromSquare(fromSquare, occupiedBoard) & targets, fromSquare);
+            }
+            break;
+        }
+        default:
+            assert(false);
+    }
+}
+
+int Board::generateAllNoisyMoves(std::vector<Move>& moveList) {
+    const int startSize = moveList.size();
+    Color inverseSide = turn == White ? Black : White;
+    Bitboard occupiedBoard = sides[White] & sides[Black];
+
+    Bitboard opponents = sides[inverseSide];
+
+    //if the king is in check, the only noisy way to get out of it is to capture a checker
+    if(kingAttackers != 0) {
+        opponents &= kingAttackers;
+    }
+
+    //If we are in check by >1 piece, the only legal way to get out of it is to move the king
+    if(isNonSingular(kingAttackers)) {
+        addNonPawnNormalMoves(moveList, King, sides[turn] & pieces[King], opponents, occupiedBoard);
+        return moveList.size() - startSize;
+    }
+
+    Bitboard enpassantSources = getPawnEnpassantCaptures(sides[turn] & pieces[Pawn], enpassantSquare, turn);
+    addEnpassantMoves(moveList, enpassantSources, enpassantSquare);
+
+    const int sideDirection = turn == White ? -1 : 1;
+    const int left = sideDirection * 7;
+    const int right = sideDirection * 9;
+    const int forward = sideDirection * 8;
+
+    Bitboard leftPawnAttacks = getPawnLeftAttacks(sides[turn] & pieces[Pawn], sides[inverseSide], turn);
+    Bitboard rightPawnAttacks = getPawnRightAttacks(sides[turn] & pieces[Pawn], sides[inverseSide], turn);
+    //Promoting forward is a pseudo-legal noisy move that can block the check if there is one
+    //So leave it to full legality to verify if it does that
+    Bitboard promoteForward = getPawnAdvances(sides[turn] & pieces[Pawn], occupiedBoard, turn) & LastRanks;
+    addPawnPromotions(moveList, promoteForward, forward);
+
+    Bitboard promoteLeftCapture = leftPawnAttacks & LastRanks;
+    leftPawnAttacks &= ~LastRanks; //don't double count
+    Bitboard promoteRightCapture = rightPawnAttacks & LastRanks;
+    rightPawnAttacks &= ~LastRanks; //don't double count
+    addPawnMoves(moveList, leftPawnAttacks & opponents, left);
+    addPawnMoves(moveList, rightPawnAttacks & opponents, right);
+    addPawnPromotions(moveList, promoteLeftCapture, left);
+    addPawnPromotions(moveList, promoteRightCapture, right);
+
+    addNonPawnNormalMoves(moveList, Knight, sides[turn] & pieces[Knight], opponents, occupiedBoard);
+    addNonPawnNormalMoves(moveList, Bishop, sides[turn] & (pieces[Bishop] | pieces[Queen]), opponents, occupiedBoard);
+    addNonPawnNormalMoves(moveList, Rook, sides[turn] & (pieces[Rook] | pieces[Queen]), opponents, occupiedBoard);
+    //TODO: Does this need to be sides[inverseSide]?
+    addNonPawnNormalMoves(moveList, King, sides[turn] & pieces[King], opponents, occupiedBoard);
+
+    return moveList.size() - startSize;
+}
+
+int Board::generateAllQuietMoves(std::vector<Move>& moveList) {
+    const int startSize = moveList.size();
+
+    Bitboard occupiedBoard = sides[White] | sides[Black];
+    //move the king if >1 checker
+    if(isNonSingular(kingAttackers)) {
+        addNonPawnNormalMoves(moveList, King, sides[turn] & piece[King], ~occupiedBoard, occupiedBoard);
+        return moveList.size() - startSize;
+    }
+    
+    //
+    Bitboard 
+
+    //pawn moves forward 1 and 2 that don't promote
+    Bitboard pawnsForwardOne = ~LastRanks & getPawnAdvances(piece[Pawns] & sides[turn], occupiedBoard);
+    addPawnMoves()
+    Bitboard pawnsForwardTwo = getPawnAd
+}
+
+int Board::generateAllLegalMoves(std::vector<Move>& moveList) {
+
 }
