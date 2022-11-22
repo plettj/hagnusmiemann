@@ -4,6 +4,7 @@
 #include <iostream>
 #include <string>
 #include <array>
+#include <vector>
 
 /**
  * The main board class that represents a current board position which is allowed to be ___PSEUDO-LEGAL___
@@ -39,7 +40,7 @@ public:
    /** 
     * The types of pieces
     */
-    enum Piece {
+    enum Piece : uint8_t {
         Pawn = 0, Knight, Bishop, Rook, Queen, King
     };	
 
@@ -48,7 +49,7 @@ public:
     * The integers they correspond to are aligned to be compatible with the internal board representation
     * using an unsigned 64 bit integer
     */ 
-    enum ColorPiece {
+    enum ColorPiece : uint8_t {
 	WhitePawn = 0, BlackPawn = 1,
 	WhiteKnight = 4, BlackKnight = 8,
 	WhiteBishop = 8, BlackBishop = 9,
@@ -84,7 +85,7 @@ public:
     * To be compatible with internal board representation (LERF as discussed below),
     * this is the enumeration of all squares in a nice alignment
     */ 
-    enum Square {
+    enum Square : int32_t {
 	None = -1,
 	a1 = 0, b1, c1, d1, e1, f1, g1, h1,
 	a2 = 8, b2, c2, d2, e2, f2, g2, h2,
@@ -187,7 +188,7 @@ public:
     static std::string squareToString(Square square);
 
     /**
-     * Creates a board object from a FEN (the copy is intentional!), OPERATES UNDER THE INVARIANT THAT THE FEN IS WELL-FORMED
+     * Factory object pattern. Creates a board object from a FEN (the copy is intentional!), OPERATES UNDER THE INVARIANT THAT THE FEN IS WELL-FORMED
      */ 
     static Board createBoardFromFEN(std::string fen);
     std::string getFEN() const;
@@ -218,19 +219,19 @@ public:
 private:
     Board(); //private constructor to force client to use static method
 
-    ColorPiece squares[NumSquares];
+    std::array<ColorPiece, NumSquares> squares;
     //TODO: whoever is implementing zobrist, implement these
     uint64_t positionHash;
     uint64_t pawnKingHash;
     //Bitboards for each of the pieces +  TODO: others (pieces are implemented)
-    Bitboard pieces[8];
+    std::array<Bitboard, 8> pieces;
     //Bitboards for each side's pieces (and empty)
-    Bitboard sides[3];
+    std::array<Bitboard, 3> sides;
     //Bitboard for where the king is attacked (TODO: useful later, not implemented now)
     Bitboard kingAttackers;
     //Bitboards corresponding to rooks that can castle (non promoted ones)
     Bitboard castlingRooks;
-    Bitboard castleMasks[NumSquares];
+    std::array<Bitboard, NumSquares> castleMasks;
     
     //the current turn, half move counter (called plies in chess programming land), and full move counter (1 move = 2 plies)
     Color turn;
@@ -238,7 +239,7 @@ private:
     int fullmoves;
     int moveCounter;
     Square enpassantSquare;
-    
+
     /**
      * Some annoying to recompute data for undoing a move
      */ 
@@ -254,17 +255,21 @@ private:
     };
     std::vector<UndoData> undoStack;
 
-    void applyLegalMove(Move move);
+    static Square getKingCastlingSquare(Square king, Square rook);
+    static Square getRookCastlingSquare(Square king, Square rook);
+
+    void applyLegalMove(Move& move);
     void applyMoveWithUndo(Move& move, UndoData& undo);
     void applyNormalMoveWithUndo(Move& move, UndoData& undo);
     void applyCastlingMoveWithUndo(Move& move, UndoData& undo);
     void applyEnpassantMoveWithUndo(Move& move, UndoData& undo);
+    void applyPromotionMoveWithUndo(Move& move, UndoData& undo);
     //TODO: null move would go here
     /**
      * This takes the most recent move from the undo stack
      */ 
-    void revertMostRecent(Move move);
-    void revertMove(Move move, UndoData& undo);
+    void revertMostRecent(Move& move);
+    void revertMove(Move& move, UndoData& undo);
 
     static void initializeStaticAttacks();
     /**

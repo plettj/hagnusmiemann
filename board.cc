@@ -1,4 +1,5 @@
 #include "board.h"
+#include "move.h"
 
 static bool staticAttacksInitialized = false;
 
@@ -434,5 +435,93 @@ void Board::populateHashTable(HashEntry* table, Square square, Bitboard hash, co
     } while(occupiedBoard != 0);
 }
 
+void Board::applyLegalMove(Move& move) {
+    
+}
 
+void Board::applyMoveWithUndo(Move& move, UndoData& undo) {
+    undo.positionHash = positionHash;
+    undo.pawnKingHash = pawnKingHash;
+    undo.kingAttackers = kingAttackers;
+    undo.castlingRooks = castlingRooks;
+    undo.enpassantSquare = enpassantSquare;
+    undo.plies = plies;
+    
+    //TODO: store hash in history
+    fullmoves++;
 
+    switch(move.getMoveType()) {
+	case Move::MoveType::Normal:
+	    applyNormalMoveWithUndo(move, undo);
+	    break;
+	case Move::MoveType::Castle:
+	    applyCastlingMoveWithUndo(move, undo);
+	    break;
+	case Move::MoveType::Enpassant:
+	    applyEnpassantMoveWithUndo(move, undo);
+	    break;
+	case Move::MoveType::Promotion:
+	    applyPromotionMoveWithUndo(move, undo);    
+    }
+
+    //if the enpassant square was not updated (i.e. no 2 pawn forward move was played),
+    //then enpassant expires and we must remove it
+    if(enpassantSquare != undo.enpassantSquare) {
+        enpassantSquare = None;
+    }
+    //flip whose turn it is
+    turn = turn == White ? Black : White;
+    kingAttackers = getAllKingAttackers();
+}
+
+void Board::applyNormalMoveWithUndo(Move& move, UndoData& undo) {
+    ColorPiece from = squares[move.getFrom()];
+    ColorPiece to = squares[move.getTo()];
+
+    Piece fromType = getPieceType(from);
+    Piece toType = getPieceType(to);
+   
+    //If we capture a piece OR move a pawn, reset the fifty move rule
+    if(fromType == Pawn || to != Empty) {
+        plies = 0;
+    } else {
+        plies++;
+    }
+    pieces[fromType] ^= (1ull << move.getFrom()) ^ (1ull << move.getTo());
+    sides[turn] ^= (1ull << move.getFrom()) ^ (1ull << move.getTo());
+
+    pieces[toType] ^= (1ull << move.getTo());
+    sides[turn == White ? Black : White] ^= (1ull << move.getTo());
+
+    squares[move.getFrom()] = Empty;
+    squares[move.getTo()] = from;
+
+    castlingRooks &= castleMasks[move.getFrom()];
+    castlingRooks &= castleMasks[move.getTo()];
+
+    //TODO:
+    //psqt and hash
+
+    //if we move 2 forward, set enpassant data
+    if(fromType == Pawn && (move.getTo() ^ move.getFrom()) == 16) {
+        //TODO: need adjacent file mask
+    }
+}
+
+Board::Square Board::getKingCastlingSquare(Board::Square king, Board::Square rook) {
+    return getSquare(getRankIndexOfSquare(king), static_cast<Index>(rook > king ? 6 : 2)); //return the castling square on the king's rank (which corresponds to the file)
+}
+
+Board::Square Board::getRookCastlingSquare(Board::Square king, Board::Square rook) {
+    return getSquare(getRankIndexOfSquare(king), static_cast<Index>(rook > king ? 5 : 3));
+}
+
+void Board::applyCastlingMoveWithUndo(Move& move, Board::UndoData& undo) {
+    Square kingFrom = move.getFrom();
+    Square rookFrom = move.getTo();
+
+    Square kingTo = getKingCastlingSquare(kingFrom, rookFrom);
+    Square rookTo = getRookCastlingSquare(kingFrom, rookFrom);
+ 
+     
+}
