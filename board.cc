@@ -1,6 +1,57 @@
 #include "board.h"
 #include "move.h"
 
+/**
+ * The following are what correspond to the functionality to determine (very efficiently!) if a square is attacked or not.
+ * These are arrays of bitboards corresponding to where we can attack with a piece on a given square.
+ * Kings, Pawns, and Knights are very simple to determine where they can attack (it's a hard and fast rule, they are never blocked by anything). 
+ */
+alignas(64) static Bitboard PawnAttack[Board::NumColors][Board::NumSquares]; //these are sided based on direction, since pawns are the only piece that aren't symmetric
+alignas(64) static Bitboard KnightAttack[Board::NumSquares];
+alignas(64) static Bitboard KingAttack[Board::NumSquares];
+/**
+ * Bishops and rooks (and queens), on the other hand, are blocked by annoying things called enemy pieces.
+ * Now, we could compute this at runtime. But that's slow and bad (no seriously TAs/instructors, if you write a chess program that does that, that's very bad)
+ * Thus, we use a strategy called Magic Bitboards.
+ * The basic idea is this: Suppose we have a rook on e5. The only possible places it can possibly move are the 5th rank and the e file.
+ * Thus, we mask out all other bits except the 5th rank and efile.
+ * Then, the other key observation is that a rank like 0001R100, where R is a rook and 1s are pieces on the rank, has the same possible moves
+ * as 1111R111, since it being blocked means the other ranks are irrelevant. 
+ * So what can we do to take advantage of this? Instead of a full lookup table (like the others), we can do a hashtable, where we _want_ hash collisions
+ * whenever two outputs are identical, but CANNOT have hash collisions whenever two outputs are different. 
+ * To do this, it more or less involves just taking our simplified masked board, multiplying it by a precomputed board that gives such a hash,
+ * and then shifting it as necessary to get the square that is attacked. 
+ * Here are our precomputed boards (aligned LERF as in Square).
+ * Citation: For these specific precomputed boards, I (Alex) was given them by Terje Kir, the author of the chess program Weiss in 2020 when I was working on badchessengine,
+ * an engine I wrote in 2019/2020.
+ */ 
+static constexpr Bitboard RookHashes[Board::NumSquares] = {
+    0xA180022080400230ull, 0x0040100040022000ull, 0x0080088020001002ull, 0x0080080280841000ull, 0x4200042010460008ull, 0x04800A0003040080ull, 0x0400110082041008ull, 0x008000A041000880ull,
+    0x10138001A080C010ull, 0x0000804008200480ull, 0x00010011012000C0ull, 0x0022004128102200ull, 0x000200081201200Cull, 0x202A001048460004ull, 0x0081000100420004ull, 0x4000800380004500ull,
+    0x0000208002904001ull, 0x0090004040026008ull, 0x0208808010002001ull, 0x2002020020704940ull, 0x8048010008110005ull, 0x6820808004002200ull, 0x0A80040008023011ull, 0x00B1460000811044ull,
+    0x4204400080008EA0ull, 0xB002400180200184ull, 0x2020200080100380ull, 0x0010080080100080ull, 0x2204080080800400ull, 0x0000A40080360080ull, 0x02040604002810B1ull, 0x008C218600004104ull,
+    0x8180004000402000ull, 0x488C402000401001ull, 0x4018A00080801004ull, 0x1230002105001008ull, 0x8904800800800400ull, 0x0042000C42003810ull, 0x008408110400B012ull, 0x0018086182000401ull,
+    0x2240088020C28000ull, 0x001001201040C004ull, 0x0A02008010420020ull, 0x0010003009010060ull, 0x0004008008008014ull, 0x0080020004008080ull, 0x0282020001008080ull, 0x50000181204A0004ull,
+    0x48FFFE99FECFAA00ull, 0x48FFFE99FECFAA00ull, 0x497FFFADFF9C2E00ull, 0x613FFFDDFFCE9200ull, 0xFFFFFFE9FFE7CE00ull, 0xFFFFFFF5FFF3E600ull, 0x0010301802830400ull, 0x510FFFF5F63C96A0ull,
+    0xEBFFFFB9FF9FC526ull, 0x61FFFEDDFEEDAEAEull, 0x53BFFFEDFFDEB1A2ull, 0x127FFFB9FFDFB5F6ull, 0x411FFFDDFFDBF4D6ull, 0x0801000804000603ull, 0x0003FFEF27EEBE74ull, 0x7645FFFECBFEA79Eull
+};
+static constexpr Bitboard BishopHashes[Board::NumSquares] = {
+    0xFFEDF9FD7CFCFFFFull, 0xFC0962854A77F576ull, 0x5822022042000000ull, 0x2CA804A100200020ull, 0x0204042200000900ull, 0x2002121024000002ull, 0xFC0A66C64A7EF576ull, 0x7FFDFDFCBD79FFFFull,
+    0xFC0846A64A34FFF6ull, 0xFC087A874A3CF7F6ull, 0x1001080204002100ull, 0x1810080489021800ull, 0x0062040420010A00ull, 0x5028043004300020ull, 0xFC0864AE59B4FF76ull, 0x3C0860AF4B35FF76ull,
+    0x73C01AF56CF4CFFBull, 0x41A01CFAD64AAFFCull, 0x040C0422080A0598ull, 0x4228020082004050ull, 0x0200800400E00100ull, 0x020B001230021040ull, 0x7C0C028F5B34FF76ull, 0xFC0A028E5AB4DF76ull,
+    0x0020208050A42180ull, 0x001004804B280200ull, 0x2048020024040010ull, 0x0102C04004010200ull, 0x020408204C002010ull, 0x02411100020080C1ull, 0x102A008084042100ull, 0x0941030000A09846ull,
+    0x0244100800400200ull, 0x4000901010080696ull, 0x0000280404180020ull, 0x0800042008240100ull, 0x0220008400088020ull, 0x04020182000904C9ull, 0x0023010400020600ull, 0x0041040020110302ull,
+    0xDCEFD9B54BFCC09Full, 0xF95FFA765AFD602Bull, 0x1401210240484800ull, 0x0022244208010080ull, 0x1105040104000210ull, 0x2040088800C40081ull, 0x43FF9A5CF4CA0C01ull, 0x4BFFCD8E7C587601ull,
+    0xFC0FF2865334F576ull, 0xFC0BF6CE5924F576ull, 0x80000B0401040402ull, 0x0020004821880A00ull, 0x8200002022440100ull, 0x0009431801010068ull, 0xC3FFB7DC36CA8C89ull, 0xC3FF8A54F4CA2C89ull,
+    0xFFFFFCFCFD79EDFFull, 0xFC0863FCCB147576ull, 0x040C000022013020ull, 0x2000104000420600ull, 0x0400000260142410ull, 0x0800633408100500ull, 0xFC087E8E4BB2F736ull, 0x43FF9E4EF4CA2C89ull
+};
+
+//these are the big arrays storing the actual possibilities
+alignas(64) static Bitboard BishopAttack[0x1480];
+alignas(64) static Bitboard RookAttack[0x19000];
+//these are the hash tables, indexed by square
+alignas(64) static Board::HashEntry BishopTable[Board::NumSquares];
+alignas(64) static Board::HashEntry RookTable[Board::NumSquares];
 static bool staticAttacksInitialized = false;
 
 Board::Index Board::getFileIndexOfSquare(Board::Square square) {
@@ -29,7 +80,7 @@ Board::Index Board::getRelativeRankIndexOfSquare(Board::Color side, Board::Squar
 }
 
 Board::Square Board::getSquare(Board::Index rankIndex, Board::Index fileIndex) {
-    return static_cast<Square>(rankIndex * NumFiles + fileIndex);
+    return getSquare(rankIndex * NumFiles + fileIndex);
 }
 
 Board::Square Board::getRelativeSquare(Board::Color side, Board::Square square) {
@@ -41,7 +92,7 @@ Board::Square Board::getRelativeSquare(Board::Color side, Board::Square square) 
 Board::Square Board::getRelativeSquare32(Board::Color side, Board::Square square) {
     assert(square != None);
     //get the relative square ours is on relative to our side and limited to the left half of the board
-    return static_cast<Square>(4 * getRelativeRankIndexOfSquare(side, square) + getMirrorFileIndex(getFileIndexOfSquare(square)));
+    return getSquare(4 * getRelativeRankIndexOfSquare(side, square) + getMirrorFileIndex(getFileIndexOfSquare(square)));
 }
 
 Board::SquareColor Board::getSquareColor(Board::Square square) {
@@ -191,7 +242,7 @@ void Board::initializeStaticAttacks() {
     //and if so set the respective bitboard.
 
     for(int square = a1; square <= h8; square++) {
-	Square sq = static_cast<Square>(square);
+	Square sq = getSquare(square);
         for(int direction = 0; direction < 2; direction++) {
 	    setBitboardSquare(PawnAttack[White][square], getRankIndexOfSquare(sq) + pawnAttackDelta[direction][0], getFileIndexOfSquare(sq) + pawnAttackDelta[direction][1]);
 	    setBitboardSquare(PawnAttack[Black][square], getRankIndexOfSquare(sq) - pawnAttackDelta[direction][0], getFileIndexOfSquare(sq) - pawnAttackDelta[direction][1]);
@@ -248,7 +299,7 @@ Bitboard Board::getAllSquareAttackers(Bitboard occupiedBoard, Board::Square squa
 }
 
 Bitboard Board::getAllKingAttackers() {
-    Square square = static_cast<Square>(getLsb(sides[turn] & pieces[King]));
+    Square square = getSquare(getLsb(sides[turn] & pieces[King]));
     Bitboard occupiedBoard = sides[White] | sides[Black];
     return getAllSquareAttackers(occupiedBoard, square);
 }
@@ -293,9 +344,9 @@ Board Board::createBoardFromFEN(std::string fen) {
     std::string token = fen.substr(0, fen.find(" "));
     for(char& c : token) {
         if(std::isdigit(c)) {
-	    square = static_cast<Square>(square + c - '0');
+	    square = getSquare(square + c - '0');
 	} else if(c == '/') {
-	    square = static_cast<Square>(square - 16);
+	    square = getSquare(square - 16);
 	} else {
         Color color = std::islower(c) ? Black : White;
 	    Piece piece;
@@ -324,7 +375,7 @@ Board Board::createBoardFromFEN(std::string fen) {
 	    }
         board.setSquare(color, piece, square);
 	    //this won't overflow under the assumption the FEN is well-formed
-        square = static_cast<Square>(square + 1);	    
+            square = getSquare(square + 1);	    
 	}
     }
     fen.erase(0, fen.find(" ") + 1);
@@ -341,19 +392,19 @@ Board Board::createBoardFromFEN(std::string fen) {
     //castling rights
     for(char& c : token) {
         if(c == 'K') {
-            setBit(board.castlingRooks, static_cast<Square>(getMsb(white & rooks & Rank1))); 
-        } else if(c == 'Q') {
-            setBit(board.castlingRooks, static_cast<Square>(getLsb(white & rooks & Rank1)));
-        } else if(c == 'k') {
-            setBit(board.castlingRooks, static_cast<Square>(getMsb(black & rooks & Rank8)));
-        } else if(c == 'q') {
-            setBit(board.castlingRooks, static_cast<Square>(getLsb(black & rooks & Rank8)));
-        }
+	    setBit(board.castlingRooks, getSquare(getMsb(white & rooks & Rank1))); 
+	} else if(c == 'Q') {
+	    setBit(board.castlingRooks, getSquare(getLsb(white & rooks & Rank1)));
+	} else if(c == 'k') {
+	    setBit(board.castlingRooks, getSquare(getMsb(black & rooks & Rank8)));
+	} else if(c == 'q') {
+	    setBit(board.castlingRooks, getSquare(getLsb(black & rooks & Rank8)));
+	}
     }
 
     //Create a bit mask of where the kings and rooks are
     for(int sq = 0; sq < NumSquares; sq++) {
-	Square s = static_cast<Square>(sq);
+	Square s = getSquare(sq);
         board.castleMasks[s] = ~0ull;
 	if(board.testBit(board.castlingRooks, s)) {
 	    clearBit(board.castleMasks[sq], s);
@@ -529,6 +580,205 @@ void Board::applyCastlingMoveWithUndo(Move& move, Board::UndoData& undo) {
 
     Square kingTo = getKingCastlingSquare(kingFrom, rookFrom);
     Square rookTo = getRookCastlingSquare(kingFrom, rookFrom);
- 
-     
+    
+    pieces[King] ^= (1ull << kingFrom) ^ (1ull << kingTo);
+    sides[turn] ^= (1ull << kingFrom) ^ (1ull << kingTo);
+
+    pieces[Rook] ^= (1ull << rookFrom) ^ (1ull << rookTo);
+    sides[turn] ^= (1ull << rookFrom) ^ (1ull << rookTo);
+
+    squares[kingFrom] = Empty;
+    squares[rookFrom] = Empty;
+
+    squares[kingTo] = makePiece(King, turn);
+    squares[rookTo] = makePiece(Rook, turn);
+    
+    castlingRooks &= castleMasks[kingFrom]; 
+
+    undo.pieceCaptured = Empty;
+
+    plies++;
+}
+
+void Board::applyEnpassantMoveWithUndo(Move& move, Board::UndoData& undo) { 
+    Square capturedSquare = getSquare(move.getTo() - 8 + (turn << 4));
+    Color inverseSide = turn == White ? Black : White;
+    
+    //en passant is a capture, so reset the fifty move rule
+    plies = 0;
+    pieces[Pawn] ^= (1ull << move.getFrom()) ^ (1ull << move.getTo());
+    sides[turn] ^= (1ull << move.getFrom()) ^ (1ull << move.getTo());
+
+    pieces[Pawn] ^= (1ull << capturedSquare);
+    sides[inverseSide] ^= (1ull << capturedSquare);
+
+    squares[move.getFrom()] = Empty;
+    squares[move.getTo()] = makePiece(Pawn, turn);
+    squares[capturedSquare] = Empty;
+    undo.pieceCaptured = makePiece(Pawn, inverseSide);
+    //TODO: hash
+}
+
+void Board::applyPromotionMoveWithUndo(Move& move, Board::UndoData& undo) {
+    ColorPiece promotedPiece = makePiece(move.getMovePromoPiece(), turn);
+    ColorPiece capturedPiece = squares[move.getTo()];
+
+    //promotion resets the fifty move rule
+    plies = 0;
+    pieces[Pawn] ^= (1ull << move.getFrom());
+    pieces[move.getMovePromoPiece()] ^= (1ull << move.getTo());
+    sides[turn] ^= (1ull << move.getFrom()) ^ (1ull << move.getTo());
+
+    pieces[getPieceType(capturedPiece)] ^= (1ull << move.getTo());
+    sides[getColorOfPiece(capturedPiece)] ^= (1ull << move.getTo());
+
+    squares[move.getFrom()] = Empty;
+    squares[move.getTo()] = promotedPiece;
+    undo.pieceCaptured = capturedPiece;
+
+    castlingRooks &= castleMasks[move.getTo()];
+
+    //TODO: hash
+}
+
+void Board::revertMostRecent(Move& move) {
+    //todo: Add stuff here for NMP
+    revertMove(move, undoStack.back());
+}
+
+void Board::revertMove(Move& move, UndoData& undo) {
+    positionHash = undo.positionHash;
+    pawnKingHash = undo.pawnKingHash;
+    kingAttackers = undo.kingAttackers;
+    enpassantSquare = undo.enpassantSquare;
+    plies = undo.plies;
+    castlingRooks = undo.castlingRooks;
+
+    turn = turn == White ? Black : White;
+    moveCounter--;
+    fullmoves--;
+
+    switch(move.getMoveType()) {
+        case Move::MoveType::Normal: {
+            Piece fromType = getPieceType(squares[move.getTo()]);
+            Piece captureType = getPieceType(undo.pieceCaptured);
+            Color capturedColor = getColorOfPiece(undo.pieceCaptured);
+
+            pieces[fromType] ^= (1ull << move.getFrom()) ^ (1ull << move.getTo());
+            sides[turn] ^= (1ull << move.getFrom()) ^ (1ull << move.getTo());
+
+            pieces[captureType] ^= (1ull << move.getTo());
+            sides[capturedColor] ^= (1ull << move.getTo());
+
+            squares[move.getFrom()] = squares[move.getTo()];
+            squares[move.getTo()] = undo.pieceCaptured;
+            break;
+        }
+        case Move::MoveType::Castle: {
+            Square rookFrom = move.getTo();
+            Square rookTo = getRookCastlingSquare(move.getFrom(), rookFrom);
+            Square kingTo = getKingCastlingSquare(move.getFrom(), rookFrom);
+
+            pieces[King] ^= (1ull << move.getFrom()) ^ (1ull << kingTo);
+            sides[turn] ^= (1ull << move.getFrom()) ^ (1ull << kingTo);
+
+            pieces[Rook] ^= (1ull << rookFrom) ^ (1ull << rookTo);
+            sides[turn] ^= (1ull << rookFrom) ^ (1ull << rookTo);
+
+            squares[kingTo] = Empty;
+            squares[rookTo] = Empty;
+
+            squares[move.getFrom()] = makePiece(King, turn);
+            squares[rookFrom] = makePiece(Rook, turn);
+            break;
+        }
+        case Move::MoveType::Promotion: {
+            Piece capturedPiece = getPieceType(undo.pieceCaptured);
+            Color capturedColor = getColorOfPiece(undo.pieceCaptured);
+
+            pieces[Pawn] ^= (1ull << move.getFrom());
+            pieces[move.getMovePromoPiece()] ^= (1ull << move.getTo());
+            sides[turn] ^= (1ull << move.getFrom()) ^ (1ull << move.getTo());
+
+            pieces[capturedPiece] ^= (1ull << move.getTo());
+            sides[capturedColor] ^= (1ull << move.getTo());
+
+            squares[move.getFrom()] = makePiece(Pawn, turn);
+            squares[move.getTo()] = undo.pieceCaptured;
+            break;
+        }
+        case Move::MoveType::Enpassant: {
+            Square enpassantCaptureSquare = getSquare(move.getTo() - 8 + (turn >> 4));
+
+            pieces[Pawn] ^= (1ull << move.getFrom()) ^ (1ull << move.getTo());
+            sides[turn] ^= (1ull << move.getFrom()) ^ (1ull << move.getTo());
+
+            pieces[Pawn] ^= (1ull << enpassantCaptureSquare);
+            sides[turn == White ? Black : White] ^= (1ull << enpassantCaptureSquare);
+
+            squares[move.getFrom()] = squares[move.getTo()];
+            squares[move.getTo()] = Empty;
+            squares[enpassantCaptureSquare] = undo.pieceCaptured;
+            break;
+        }
+        default:
+            std::cerr << "AHHHHHHH" << std::endl;    
+    }
+}
+
+bool Board::isMovePseudoLegal(Move& move) {
+    Piece fromType = getPieceType(squares[move.getFrom()]);
+
+    //The following are illegal moves that are theoretically valid as moves in our encoding
+    if(move.isMoveNone() || getColorOfPiece(squares[move.getFrom()]) != turn || (move.getPromoType() != Move::MovePromotionType::KnightPromotion && !move.isMovePromotion()) || (move.getMoveType() == Move::MoveType::Castle && fromType != King)) {
+        return false;
+    }
+
+    Bitboard occupiedBoard = sides[White] | sides[Black];
+
+    //Nonspecial moves from nonpawns are pseudo legal as long as they are normal and previously were attacking the squares
+
+
+    if(fromType == Knight) {
+        return move.getMoveType() == Move::MoveType::Normal && testBit(KnightAttack[move.getFrom()] & ~sides[turn], move.getTo());
+    }
+    if(fromType == Bishop) {
+        return move.getMoveType() == Move::MoveType::Normal && testBit(getBishopAttacksFromSquare(move.getFrom(), occupiedBoard), move.getTo());
+    }
+    if(fromType == Rook) {
+        return move.getMoveType() == Move::MoveType::Normal && testBit(getRookAttacksFromSquare(move.getFrom(), occupiedBoard), move.getTo());
+    }
+    if(fromType == Queen) {
+        return move.getMoveType() == Move::MoveType::Normal && testBit(getQueenAttacksFromSquare(move.getFrom(), occupiedBoard), move.getTo());
+    }
+    if(fromType == King && move.getMoveType() == Move::MoveType::Normal) {
+        return testBit(KingAttack[move.getFrom()] & ~sides[turn], move.getTo());
+    }
+    if(fromType == Pawn) {
+        if(move.getMoveType() == Move::MoveType::Enpassant) {
+            return move.getTo() == enpassantSquare && testBit(PawnAttack[turn][move.getFrom()], move.getTo());
+        }
+
+        Bitboard pawnAdvance = getPawnAdvances(1ull << move.getFrom(), occupiedBoard, turn);
+
+        if(move.getMoveType() == Move::MoveType::Promotion) {
+            return testBit(LastRanks & ((PawnAttack[turn][move.getFrom()] & sides[turn == White ? Black : White]) | pawnAdvance), move.getTo());
+        }
+        //Alright, not enpassant or promotion, must be normal.
+        //This includes 2 forward at start, so add those by including the 3rd rank as a starting point for a forward pawn move 
+        pawnAdvance |= getPawnAdvances(pawnAdvance & (turn == White ? Rank3 : Rank6), occupiedBoard, turn);
+
+        return testBit(~LastRanks & ((PawnAttack[turn][move.getFrom()] & sides[turn == White ? Black : White]) | pawnAdvance), move.getTo());
+    }
+    //must be castling (we ruled out king normals above)
+    if(move.getMoveType() != Move::MoveType::Castle) {
+        return false;
+    }
+
+}
+
+bool Board::isMoveLegal(Move& move) {
+    Color previousTurn = turn == White ? Black : White;
+    Square kingSquare = getSquare(getLsb(pieces[King] & sides[previousTurn]));
+    return isMovePseudoLegal(move) && !isSquareAttacked(kingSquare, previousTurn);
 }
