@@ -34,16 +34,15 @@ public:
      * The two colors of pieces
      */
     enum Color {
-	White = 0, Black
+	    White = 0, Black
     };
 
-   /** 
-    * The types of pieces
-    */
+    /** 
+     * The types of pieces
+     */
     enum Piece : uint8_t {
         Pawn = 0, Knight, Bishop, Rook, Queen, King
-    };	
-
+    };
    /**
     * The types of pieces with colour included (and "Empty", useful for things like empty squares).
     * The integers they correspond to are aligned to be compatible with the internal board representation
@@ -51,7 +50,7 @@ public:
     */ 
     enum ColorPiece : uint8_t {
 	WhitePawn = 0, BlackPawn = 1,
-	WhiteKnight = 4, BlackKnight = 8,
+	WhiteKnight = 4, BlackKnight = 5,
 	WhiteBishop = 8, BlackBishop = 9,
 	WhiteRook = 12, BlackRook = 13,
 	WhiteQueen = 16, BlackQueen = 17,
@@ -73,12 +72,12 @@ public:
      * Gets the color of the piece from the ColorPiece
      */
     static inline Color getColorOfPiece(ColorPiece piece) {
-	assert(piece != Empty);
-	return static_cast<Color>(piece % 4);
+	    assert(piece != Empty);
+	    return static_cast<Color>(piece % 4);
     }
 
     static inline ColorPiece makePiece(Piece type, Color color) {
-	return static_cast<ColorPiece>(type * 4 + color);
+	    return static_cast<ColorPiece>(type * 4 + color);
     }
 
    /**
@@ -98,8 +97,8 @@ public:
     };
 
     static inline Square getSquare(int square) {
-	assert(-1 >= square && square <= 63);
-	return static_cast<Square>(square);
+	    assert(-1 >= square && square <= 63);
+	    return static_cast<Square>(square);
     }
 
    /**
@@ -109,42 +108,42 @@ public:
     * We combine these bit representations with each other using basic binary math to encode squares in an efficient way!
     */
     enum Rank : uint64_t {
-	Rank1 = 0x00000000000000FFull,
-	Rank2 = 0x000000000000FF00ull,
-	Rank3 = 0x0000000000FF0000ull,
-	Rank4 = 0x00000000FF000000ull,
-	Rank5 = 0x000000FF00000000ull,
-	Rank6 = 0x0000FF0000000000ull,
-	Rank7 = 0x00FF000000000000ull,
-	Rank8 = 0xFF00000000000000ull
+        Rank1 = 0x00000000000000FFull,
+        Rank2 = 0x000000000000FF00ull,
+        Rank3 = 0x0000000000FF0000ull,
+        Rank4 = 0x00000000FF000000ull,
+        Rank5 = 0x000000FF00000000ull,
+        Rank6 = 0x0000FF0000000000ull,
+        Rank7 = 0x00FF000000000000ull,
+        Rank8 = 0xFF00000000000000ull
     };
 
     enum File : uint64_t {
-	FileA = 0x0101010101010101ull,
-	FileB = 0x0202020202020202ull,
-	FileC = 0x0404040404040404ull,
-	FileD = 0x0808080808080808ull,
-	FileE = 0x1010101010101010ull,
-	FileF = 0x2020202020202020ull,
-	FileG = 0x4040404040404040ull,
-	FileH = 0x8080808080808080ull
+        FileA = 0x0101010101010101ull,
+        FileB = 0x0202020202020202ull,
+        FileC = 0x0404040404040404ull,
+        FileD = 0x0808080808080808ull,
+        FileE = 0x1010101010101010ull,
+        FileF = 0x2020202020202020ull,
+        FileG = 0x4040404040404040ull,
+        FileH = 0x8080808080808080ull
     };
 
     enum SquareColor : uint64_t {
-	LightSquares = 0x55AA55AA55AA55AAull,
-	DarkSquares = 0xAA55AA55AA55AA55ull
+        LightSquares = 0x55AA55AA55AA55AAull,
+        DarkSquares = 0xAA55AA55AA55AA55ull
     };
 
     //other board LERF mappings that aren't as important (hence no name) but still nice to have
     enum : uint64_t {
-	a1h8Diagonal = 0x8040201008040201ull,
-	h1a8Diagonal = 0x0102040810204080ull,
-	MainDiagonals = a1h8Diagonal | h1a8Diagonal,
-	CenterFour =  (FileD | FileE) & (Rank4 | Rank5),
-	CenterSixteen = (FileC | FileD | FileE | FileF) & (Rank3 | Rank4 | Rank5 | Rank6),
-	LeftSide = FileA | FileB | FileC | FileD,
-	RightSide = FileE | FileF | FileG | FileH,
-	LastRanks = Rank1 | Rank8
+        a1h8Diagonal = 0x8040201008040201ull,
+        h1a8Diagonal = 0x0102040810204080ull,
+        MainDiagonals = a1h8Diagonal | h1a8Diagonal,
+        CenterFour =  (FileD | FileE) & (Rank4 | Rank5),
+        CenterSixteen = (FileC | FileD | FileE | FileF) & (Rank3 | Rank4 | Rank5 | Rank6),
+        LeftSide = FileA | FileB | FileC | FileD,
+        RightSide = FileE | FileF | FileG | FileH,
+        LastRanks = Rank1 | Rank8
     };
 
     static inline Rank getRank(int index) {
@@ -166,7 +165,7 @@ public:
      * but well worth it! 
      */
     enum Index {
-	Zero = 0, One, Two, Three, Four, Five, Six, Seven
+	    Zero = 0, One, Two, Three, Four, Five, Six, Seven
     };
 
     /**
@@ -191,8 +190,11 @@ public:
      * Factory object pattern. Creates a board object from a FEN (the copy is intentional!), OPERATES UNDER THE INVARIANT THAT THE FEN IS WELL-FORMED
      */ 
     static Board createBoardFromFEN(std::string fen);
+
     std::string getFEN() const;
-    void printBoard(std::ostream& out) const;
+    ColorPiece getPieceAt(Square square) const;
+    Square getKing() const;
+    Color getTurn() const;
 
     bool hasNonPawns(Color side) const;
     bool isDrawn(int threefoldHeight) const;
@@ -245,13 +247,13 @@ private:
      */ 
     struct UndoData {
         uint64_t positionHash;
-	uint64_t pawnKingHash;
-	Bitboard kingAttackers;
-	Bitboard castlingRooks;
-	Square enpassantSquare;
-	int plies;
-	//TODO: psqt?
-	ColorPiece pieceCaptured;
+        uint64_t pawnKingHash;
+        Bitboard kingAttackers;
+        Bitboard castlingRooks;
+        Square enpassantSquare;
+        int plies;
+        //TODO: psqt?
+        ColorPiece pieceCaptured;
     };
     std::vector<UndoData> undoStack;
 

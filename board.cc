@@ -137,8 +137,8 @@ std::string Board::squareToString(Square square) {
     if(square == None) {
         output.append("-");
     } else {
-	output += 'a' + getFileIndexOfSquare(square);
-	output += '1' + getRankIndexOfSquare(square);
+        output += 'a' + getFileIndexOfSquare(square);
+        output += '1' + getRankIndexOfSquare(square);
     }
     return output;
 }
@@ -160,7 +160,7 @@ Board::Board() : positionHash{0}, pawnKingHash{0}, kingAttackers{0}, castlingRoo
     }
     for(int i = 0; i < 64; i++) {
         squares[i] = Empty;
-	castleMasks[i] = 0;
+	    castleMasks[i] = 0;
     }
     initializeStaticAttacks();
 }
@@ -297,9 +297,9 @@ Board Board::createBoardFromFEN(std::string fen) {
 	} else if(c == '/') {
 	    square = static_cast<Square>(square - 16);
 	} else {
-            Color color = std::islower(c) ? Black : White;
+        Color color = std::islower(c) ? Black : White;
 	    Piece piece;
-            switch(std::toupper(c)) {
+        switch(std::toupper(c)) {
 	        case 'P':
 		    piece = Pawn;
 		    break;
@@ -322,9 +322,9 @@ Board Board::createBoardFromFEN(std::string fen) {
 		    std::cerr << "hey you suck this isn't a chess piece give me a real chess piece" << std::endl;
 		    return board;    
 	    }
-            board.setSquare(color, piece, square);
+        board.setSquare(color, piece, square);
 	    //this won't overflow under the assumption the FEN is well-formed
-            square = static_cast<Square>(square + 1);	    
+        square = static_cast<Square>(square + 1);	    
 	}
     }
     fen.erase(0, fen.find(" ") + 1);
@@ -341,14 +341,14 @@ Board Board::createBoardFromFEN(std::string fen) {
     //castling rights
     for(char& c : token) {
         if(c == 'K') {
-	    setBit(board.castlingRooks, static_cast<Square>(getMsb(white & rooks & Rank1))); 
-	} else if(c == 'Q') {
-	    setBit(board.castlingRooks, static_cast<Square>(getLsb(white & rooks & Rank1)));
-	} else if(c == 'k') {
-	    setBit(board.castlingRooks, static_cast<Square>(getMsb(black & rooks & Rank8)));
-	} else if(c == 'q') {
-	    setBit(board.castlingRooks, static_cast<Square>(getLsb(black & rooks & Rank8)));
-	}
+            setBit(board.castlingRooks, static_cast<Square>(getMsb(white & rooks & Rank1))); 
+        } else if(c == 'Q') {
+            setBit(board.castlingRooks, static_cast<Square>(getLsb(white & rooks & Rank1)));
+        } else if(c == 'k') {
+            setBit(board.castlingRooks, static_cast<Square>(getMsb(black & rooks & Rank8)));
+        } else if(c == 'q') {
+            setBit(board.castlingRooks, static_cast<Square>(getLsb(black & rooks & Rank8)));
+        }
     }
 
     //Create a bit mask of where the kings and rooks are
@@ -388,9 +388,16 @@ std::string Board::getFEN() const {
     return "not implemented yet";
 }
 
-void Board::printBoard(std::ostream& out) const {
-    out << "TODO" << std::endl;
-}
+Board::ColorPiece Board::getPieceAt(Square square) const {
+    assert(square != Empty);
+    return squares[square];
+};
+Board::Square Board::getKing() const {
+    return static_cast<Square>(getLsb(pieces[King] & sides[turn]));
+};
+Board::Color Board::getTurn() const {
+    return turn;
+};
 
 unsigned long long Board::perftTest(int depth) {
     //TODO:
