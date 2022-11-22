@@ -102,10 +102,11 @@ bool Board::testBit(Bitboard bb, Board::Square bit) {
 void Board::debugPrintBitboard(Bitboard bb) {
     for(int i = NumRanks - 1; i >= 0; i--) {
         for(int j = 0; j < NumFiles; j++) {
-	    std::cout << testBit(bb, getSquare(i, j));
-	}
-	std::cout << std::endl;
+	        std::cout << testBit(bb, getSquare(i, j));
+	    }
+	    std::cout << std::endl;
     }
+    std::cout << std::endl;
 }
 
 bool Board::hasNonPawns(Color side) const {
@@ -281,8 +282,7 @@ Bitboard Board::getPawnAdvances(Bitboard pawnBoard, Bitboard occupiedBoard, Boar
 }
 
 Bitboard Board::getPawnEnpassantCaptures(Bitboard pawnBoard, Board::Square enpassantSquare, Color side) {
-    Color inverseSide = side == White ? Black : White;
-    return enpassantSquare == None ? 0 : PrecomputedBinary::getBinary().getPawnAttacksFromSquare(enpassantSquare, inverseSide) & pawnBoard;
+    return (enpassantSquare == None) ? 0 : PrecomputedBinary::getBinary().getPawnAttacksFromSquare(enpassantSquare, side) & pawnBoard;
 }
 
 Bitboard Board::getAllSquareAttackers(Bitboard occupiedBoard, Board::Square square) {
@@ -301,22 +301,45 @@ Bitboard Board::getAllKingAttackers() {
 }
 
 bool Board::isSquareAttacked(Square square, Board::Color side) {
-    Board::Color inverseColor = side == White ? Black : White;
-    Bitboard enemyPieces = sides[inverseColor];
+    Bitboard enemyPieces = sides[flipColor(side)];
     Bitboard occupiedBoard = sides[White] | sides[Black];
 
     Bitboard enemyPawns = enemyPieces & pieces[Pawn];
     Bitboard enemyKnights = enemyPieces & pieces[Knight];
     Bitboard enemyBishops = enemyPieces & (pieces[Bishop] | pieces[Queen]);
-    Bitboard enemyRooks = enemyPieces & (pieces[Bishop] | pieces[Queen]);
+    Bitboard enemyRooks = enemyPieces & (pieces[Rook] | pieces[Queen]);
     Bitboard enemyKings = enemyPieces & pieces[King];
 
     //avoid doing hash lookups via short circuit if we can
-    return (PrecomputedBinary::getBinary().getPawnAttacksFromSquare(square, side) & enemyPawns) 
-    || (PrecomputedBinary::getBinary().getKnightAttacksFromSquare(square) & enemyKnights) 
-    || (PrecomputedBinary::getBinary().getKingAttacksFromSquare(square) & enemyKings) 
-    || (enemyBishops != 0 && (PrecomputedBinary::getBinary().getBishopAttacksFromSquare(square, occupiedBoard) & enemyBishops)) 
-    || (enemyRooks != 0 && (PrecomputedBinary::getBinary().getRookAttacksFromSquare(square, occupiedBoard) & enemyRooks));
+    return ((PrecomputedBinary::getBinary().getPawnAttacksFromSquare(square, side) & enemyPawns) != 0) 
+    || ((PrecomputedBinary::getBinary().getKnightAttacksFromSquare(square) & enemyKnights) != 0)
+    || ((PrecomputedBinary::getBinary().getKingAttacksFromSquare(square) & enemyKings) != 0)
+    || ((enemyBishops != 0) && ((PrecomputedBinary::getBinary().getBishopAttacksFromSquare(square, occupiedBoard) & enemyBishops) != 0)) 
+    || ((enemyRooks != 0) && ((PrecomputedBinary::getBinary().getRookAttacksFromSquare(square, occupiedBoard) & enemyRooks) != 0));
+}
+
+bool Board::debugIsSquareAttacked(Square square, Board::Color side) {
+    Bitboard enemyPieces = sides[flipColor(side)];
+    Bitboard occupiedBoard = sides[White] | sides[Black];
+
+    Bitboard enemyPawns = enemyPieces & pieces[Pawn];
+    Bitboard enemyKnights = enemyPieces & pieces[Knight];
+    Bitboard enemyBishops = enemyPieces & (pieces[Bishop] | pieces[Queen]);
+    Bitboard enemyRooks = enemyPieces & (pieces[Rook] | pieces[Queen]);
+    Bitboard enemyKings = enemyPieces & pieces[King];
+
+    bool attackedByPawns = (PrecomputedBinary::getBinary().getPawnAttacksFromSquare(square, side) & enemyPawns) != 0;
+    bool attackedByKnights = (PrecomputedBinary::getBinary().getKnightAttacksFromSquare(square) & enemyKnights) != 0;
+    bool attackedByKings = (PrecomputedBinary::getBinary().getKingAttacksFromSquare(square) & enemyKings) != 0;
+    bool attackedByBishops = ((enemyBishops != 0) && ((PrecomputedBinary::getBinary().getBishopAttacksFromSquare(square, occupiedBoard) & enemyBishops) != 0));
+    bool attackedByRooks = ((enemyRooks != 0) && ((PrecomputedBinary::getBinary().getRookAttacksFromSquare(square, occupiedBoard) & enemyRooks) != 0));
+
+    debugPrintBitboard(enemyPieces);
+    std::cerr << std::endl;
+    debugPrintBitboard(enemyKnights);
+    std::cerr << std::endl;
+    std::cerr << attackedByPawns << " " << attackedByKnights << " " << attackedByKings << " " << attackedByBishops << " " << attackedByRooks << std::endl;
+    return attackedByPawns || attackedByKnights || attackedByKings || attackedByBishops || attackedByRooks;
 }
 
 
@@ -445,7 +468,6 @@ Board::Color Board::getTurn() const {
 };
 
 unsigned long long Board::perftTest(int depth) {
-    std::cout << "PERFT DEPTH" << depth << std::endl;
     if(depth == 0) {
         return 1;
     }
@@ -455,18 +477,34 @@ unsigned long long Board::perftTest(int depth) {
     std::vector<Move> moveList;
 
     generateAllNoisyMoves(moveList);
+    std::cerr << "Noisy" << moveList.size() << std::endl;
     generateAllQuietMoves(moveList);
+    std::cerr << "Quiet + Noisy" << moveList.size() << std::endl;
 
     for(Move& move : moveList) {
+        if(move.toString() == "e1e2") {
+            std::cerr << "here" << std::endl;
+        }
         applyMoveWithUndo(move, undoStack.back());
         if(!didLastMoveLeaveInCheck()) {
             numMoves += perftTest(depth - 1);
+        } else {
+           /* Square kingSquare = getSquare(getLsb(sides[flipColor(turn)] & pieces[King]));
+            std::cerr << squareToString(kingSquare) << std::endl;
+            std::cerr << debugIsSquareAttacked(kingSquare, flipColor(turn)) << std::endl;
+            std::cerr << move.toString() << std::endl;
+            debugPrintBitboard(pieces[Knight]);
+            std::cerr << std::endl;
+            debugPrintBitboard(sides[Black]);
+            std::cerr << std::endl;
+            debugPrintBitboard(kingAttackers);
+            std::cerr << turn << std::endl;
+            */
         }
         revertMove(move, undoStack.back());
     }
+    undoStack.pop_back();
     return numMoves;
-
-    return 0;
 }
 
 Bitboard Board::PrecomputedBinary::calculateRookBishopAttacks(Square square, Bitboard occupiedBoard, const MultiArray<int, 4, 2>& movementDelta) {
@@ -520,8 +558,19 @@ bool Board::applyMove(Move& move) {
 }
 
 bool Board::didLastMoveLeaveInCheck() {
-    Square kingSquare = getSquare(getLsb(sides[turn == White ? Black : White] & pieces[King]));
-    return isSquareAttacked(kingSquare, turn == White ? Black : White);
+    if(sides[flipColor(turn)] == 0) 
+    {
+        std::cerr << "side" << std::endl;
+
+    } else if(pieces[King] == 0) {
+        std::cerr << "king" << std::endl;
+
+    } else if((pieces[King] & sides[flipColor(turn)]) == 0) {
+        std::cerr << "both" << std::endl;
+    }
+
+    Square kingSquare = getSquare(getLsb(sides[flipColor(turn)] & pieces[King]));
+    return isSquareAttacked(kingSquare, flipColor(turn));
 }
 
 void Board::applyLegalMove(Move& move) {
@@ -562,7 +611,7 @@ void Board::applyMoveWithUndo(Move& move, UndoData& undo) {
         enpassantSquare = None;
     }
     //flip whose turn it is
-    turn = turn == White ? Black : White;
+    turn = flipColor(turn);
     kingAttackers = getAllKingAttackers();
 }
 
@@ -579,10 +628,11 @@ void Board::applyNormalMoveWithUndo(Move& move, UndoData& undo) {
     pieces[getPieceType(from)] ^= (1ull << move.getFrom()) ^ (1ull << move.getTo());
     sides[turn] ^= (1ull << move.getFrom()) ^ (1ull << move.getTo());
 
+    //if we captured
     if(to != Empty) {
         pieces[getPieceType(to)] ^= (1ull << move.getTo());
+        sides[flipColor(turn)] ^= (1ull << move.getTo());
     }
-    sides[turn == White ? Black : White] ^= (1ull << move.getTo());
 
     squares[move.getFrom()] = Empty;
     squares[move.getTo()] = from;
@@ -595,10 +645,12 @@ void Board::applyNormalMoveWithUndo(Move& move, UndoData& undo) {
 
     //if we move 2 forward, set enpassant data
     if(getPieceType(from) == Pawn && (move.getTo() ^ move.getFrom()) == 16
-    && 0 != (pieces[Pawn] & sides[turn == White ? Black : White] & PrecomputedBinary::getBinary().getAdjacentFilesMask(getFileIndexOfSquare(move.getFrom())) & (turn == White ? Rank4 : Rank5))) {
-        enpassantSquare = getSquare(turn == White ? from + 8 : from - 8);
+    && 0 != (pieces[Pawn] & sides[flipColor(turn)] & PrecomputedBinary::getBinary().getAdjacentFilesMask(getFileIndexOfSquare(move.getFrom())) & (turn == White ? Rank4 : Rank5))) {
+        enpassantSquare = getSquare((turn == White) ? move.getFrom() + 8 : move.getFrom() - 8);
         //TODO: hash
     }
+
+    undo.pieceCaptured = to;
 }
 
 Board::Square Board::getKingCastlingSquare(Board::Square king, Board::Square rook) {
@@ -637,7 +689,6 @@ void Board::applyCastlingMoveWithUndo(Move& move, Board::UndoData& undo) {
 
 void Board::applyEnpassantMoveWithUndo(Move& move, Board::UndoData& undo) { 
     Square capturedSquare = getSquare(move.getTo() - 8 + (turn << 4));
-    Color inverseSide = turn == White ? Black : White;
     
     //en passant is a capture, so reset the fifty move rule
     plies = 0;
@@ -645,12 +696,12 @@ void Board::applyEnpassantMoveWithUndo(Move& move, Board::UndoData& undo) {
     sides[turn] ^= (1ull << move.getFrom()) ^ (1ull << move.getTo());
 
     pieces[Pawn] ^= (1ull << capturedSquare);
-    sides[inverseSide] ^= (1ull << capturedSquare);
+    sides[flipColor(turn)] ^= (1ull << capturedSquare);
 
     squares[move.getFrom()] = Empty;
     squares[move.getTo()] = makePiece(Pawn, turn);
     squares[capturedSquare] = Empty;
-    undo.pieceCaptured = makePiece(Pawn, inverseSide);
+    undo.pieceCaptured = makePiece(Pawn, flipColor(turn));
     //TODO: hash
 }
 
@@ -664,8 +715,10 @@ void Board::applyPromotionMoveWithUndo(Move& move, Board::UndoData& undo) {
     pieces[move.getMovePromoPiece()] ^= (1ull << move.getTo());
     sides[turn] ^= (1ull << move.getFrom()) ^ (1ull << move.getTo());
 
-    pieces[getPieceType(capturedPiece)] ^= (1ull << move.getTo());
-    sides[getColorOfPiece(capturedPiece)] ^= (1ull << move.getTo());
+    if(capturedPiece != Empty) {
+        pieces[getPieceType(capturedPiece)] ^= (1ull << move.getTo());
+        sides[getColorOfPiece(capturedPiece)] ^= (1ull << move.getTo());
+    }
 
     squares[move.getFrom()] = Empty;
     squares[move.getTo()] = promotedPiece;
@@ -690,21 +743,21 @@ void Board::revertMove(Move& move, UndoData& undo) {
     plies = undo.plies;
     castlingRooks = undo.castlingRooks;
 
-    turn = turn == White ? Black : White;
+    turn = flipColor(turn);
     moveCounter--;
     fullmoves--;
 
     switch(move.getMoveType()) {
         case Move::MoveType::Normal: {
             Piece fromType = getPieceType(squares[move.getTo()]);
-            Piece captureType = getPieceType(undo.pieceCaptured);
-            Color capturedColor = getColorOfPiece(undo.pieceCaptured);
 
             pieces[fromType] ^= (1ull << move.getFrom()) ^ (1ull << move.getTo());
             sides[turn] ^= (1ull << move.getFrom()) ^ (1ull << move.getTo());
 
-            pieces[captureType] ^= (1ull << move.getTo());
-            sides[capturedColor] ^= (1ull << move.getTo());
+            if(undo.pieceCaptured != Empty) {
+                pieces[getPieceType(undo.pieceCaptured)] ^= (1ull << move.getTo());
+                sides[getColorOfPiece(undo.pieceCaptured)] ^= (1ull << move.getTo());
+            }
 
             squares[move.getFrom()] = squares[move.getTo()];
             squares[move.getTo()] = undo.pieceCaptured;
@@ -729,15 +782,14 @@ void Board::revertMove(Move& move, UndoData& undo) {
             break;
         }
         case Move::MoveType::Promotion: {
-            Piece capturedPiece = getPieceType(undo.pieceCaptured);
-            Color capturedColor = getColorOfPiece(undo.pieceCaptured);
-
             pieces[Pawn] ^= (1ull << move.getFrom());
             pieces[move.getMovePromoPiece()] ^= (1ull << move.getTo());
             sides[turn] ^= (1ull << move.getFrom()) ^ (1ull << move.getTo());
 
-            pieces[capturedPiece] ^= (1ull << move.getTo());
-            sides[capturedColor] ^= (1ull << move.getTo());
+            if(undo.pieceCaptured != Empty) {
+                pieces[getPieceType(undo.pieceCaptured)] ^= (1ull << move.getTo());
+                sides[getColorOfPiece(undo.pieceCaptured)] ^= (1ull << move.getTo());
+            }
 
             squares[move.getFrom()] = makePiece(Pawn, turn);
             squares[move.getTo()] = undo.pieceCaptured;
@@ -750,7 +802,7 @@ void Board::revertMove(Move& move, UndoData& undo) {
             sides[turn] ^= (1ull << move.getFrom()) ^ (1ull << move.getTo());
 
             pieces[Pawn] ^= (1ull << enpassantCaptureSquare);
-            sides[turn == White ? Black : White] ^= (1ull << enpassantCaptureSquare);
+            sides[flipColor(turn)] ^= (1ull << enpassantCaptureSquare);
 
             squares[move.getFrom()] = squares[move.getTo()];
             squares[move.getTo()] = Empty;
@@ -798,13 +850,13 @@ bool Board::isMovePseudoLegal(Move& move) {
         Bitboard pawnAdvance = getPawnAdvances(1ull << move.getFrom(), occupiedBoard, turn);
 
         if(move.getMoveType() == Move::MoveType::Promotion) {
-            return testBit(LastRanks & ((PrecomputedBinary::getBinary().getPawnAttacksFromSquare(move.getFrom(), turn) & sides[turn == White ? Black : White]) | pawnAdvance), move.getTo());
+            return testBit(LastRanks & ((PrecomputedBinary::getBinary().getPawnAttacksFromSquare(move.getFrom(), turn) & sides[flipColor(turn)]) | pawnAdvance), move.getTo());
         }
         //Alright, not enpassant or promotion, must be normal.
         //This includes 2 forward at start, so add those by including the 3rd rank as a starting point for a forward pawn move 
         pawnAdvance |= getPawnAdvances(pawnAdvance & (turn == White ? Rank3 : Rank6), occupiedBoard, turn);
 
-        return testBit(~LastRanks & ((PrecomputedBinary::getBinary().getPawnAttacksFromSquare(move.getFrom(), turn) & sides[turn == White ? Black : White]) | pawnAdvance), move.getTo());
+        return testBit(~LastRanks & ((PrecomputedBinary::getBinary().getPawnAttacksFromSquare(move.getFrom(), turn) & sides[flipColor(turn)]) | pawnAdvance), move.getTo());
     }
     //must be castling (we ruled out king normals above)
     if(move.getMoveType() != Move::MoveType::Castle) {
@@ -845,9 +897,8 @@ bool Board::isMovePseudoLegal(Move& move) {
 }
 
 bool Board::isMoveLegal(Move& move) {
-    Color previousTurn = turn == White ? Black : White;
-    Square kingSquare = getSquare(getLsb(pieces[King] & sides[previousTurn]));
-    return isMovePseudoLegal(move) && !isSquareAttacked(kingSquare, previousTurn);
+    Square kingSquare = getSquare(getLsb(pieces[King] & sides[flipColor(turn)]));
+    return isMovePseudoLegal(move) && !isSquareAttacked(kingSquare, flipColor(turn));
 }
 
 void Board::addEnpassantMoves(std::vector<Move>& moveList, Bitboard sources, Square enpassantSquare) {
@@ -928,10 +979,9 @@ bool Board::isSquareInBoardAttacked(Bitboard board, Color turn) {
 
 int Board::generateAllNoisyMoves(std::vector<Move>& moveList) {
     const int startSize = moveList.size();
-    Color inverseSide = turn == White ? Black : White;
     Bitboard occupiedBoard = sides[White] | sides[Black];
 
-    Bitboard opponents = sides[inverseSide];
+    Bitboard opponents = sides[flipColor(turn)];
 
     //if the king is in check, the only noisy way to get out of it is to capture a checker
     if(kingAttackers != 0) {
@@ -952,8 +1002,8 @@ int Board::generateAllNoisyMoves(std::vector<Move>& moveList) {
     const int right = sideDirection * (NumFiles + 1);
     const int forward = sideDirection * NumFiles;
 
-    Bitboard leftPawnAttacks = getPawnLeftAttacks(sides[turn] & pieces[Pawn], sides[inverseSide], turn);
-    Bitboard rightPawnAttacks = getPawnRightAttacks(sides[turn] & pieces[Pawn], sides[inverseSide], turn);
+    Bitboard leftPawnAttacks = getPawnLeftAttacks(sides[turn] & pieces[Pawn], sides[flipColor(turn)], turn);
+    Bitboard rightPawnAttacks = getPawnRightAttacks(sides[turn] & pieces[Pawn], sides[flipColor(turn)], turn);
     //Promoting forward is a pseudo-legal noisy move that can block the check if there is one
     //So leave it to full legality to verify if it does that
     Bitboard promoteForward = getPawnAdvances(sides[turn] & pieces[Pawn], occupiedBoard, turn) & LastRanks;

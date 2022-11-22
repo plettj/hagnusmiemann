@@ -42,6 +42,10 @@ public:
 	    White = 0, Black
     };
 
+    static inline Color flipColor(Color color) {
+        return (color == White) ? Black : White;
+    }
+
     /** 
      * The types of pieces
      */
@@ -68,9 +72,9 @@ public:
     * Gets the overall piece type from the ColorPiece
     */ 
     static inline Piece getPieceType(ColorPiece piece) {
-	assert(piece != Empty);
-	//take advantage of alignment to just truncate and get correct result    
-	return static_cast<Piece>(piece / 4);
+	    assert(piece != Empty);
+	    //take advantage of alignment to just truncate and get correct result    
+	    return static_cast<Piece>(piece / 4);
     }
 
     /**
@@ -387,7 +391,7 @@ private:
      * Returns number of moves added to vector.
      */
     int generateAllQuietMoves(std::vector<Move>& moveList);
-
+    bool debugIsSquareAttacked(Square square, Board::Color side);
     /**
      * Some annoying to recompute data for undoing a move
      */ 
