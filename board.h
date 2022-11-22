@@ -373,7 +373,7 @@ private:
      */
     void addNormalMoves(std::vector<Move>& moveList, Bitboard targets, Square from);
     /**
-     * type must be King or Knight, will error otherwise 
+     * type must be Knight, Bishop, Rook, King, will error otherwise 
      */
     void addNonPawnNormalMoves(std::vector<Move>& moveList, Piece type, Bitboard targets, Bitboard sources, Bitboard occupiedBoard);
 
@@ -419,7 +419,7 @@ private:
     void revertMostRecent(Move& move);
     void revertMove(Move& move, UndoData& undo);
 
-
+    bool isSquareInBoardAttacked(Bitboard board, Color turn);
     //With these, we can do what is necessary to determine all the attacks
     Bitboard getAllSquareAttackers(Bitboard occupiedBoard, Square square);
     Bitboard getAllKingAttackers();

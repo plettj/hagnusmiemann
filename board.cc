@@ -445,7 +445,27 @@ Board::Color Board::getTurn() const {
 };
 
 unsigned long long Board::perftTest(int depth) {
-    //TODO:
+    std::cout << "PERFT DEPTH" << depth << std::endl;
+    if(depth == 0) {
+        return 1;
+    }
+    unsigned long long numMoves = 0;
+    
+    undoStack.emplace_back();
+    std::vector<Move> moveList;
+
+    generateAllNoisyMoves(moveList);
+    generateAllQuietMoves(moveList);
+
+    for(Move& move : moveList) {
+        applyMoveWithUndo(move, undoStack.back());
+        if(!didLastMoveLeaveInCheck()) {
+            numMoves += perftTest(depth - 1);
+        }
+        revertMove(move, undoStack.back());
+    }
+    return numMoves;
+
     return 0;
 }
 
@@ -480,10 +500,12 @@ void Board::PrecomputedBinary::populateHashTable(HashEntry* table, Square square
     }
     
     //Initialize the attacks at every square
-    do {
+    table[square].offset[computeHashTableIndex(occupiedBoard, table[square])] = calculateRookBishopAttacks(square, occupiedBoard, movementDelta);
+    occupiedBoard = (occupiedBoard - table[square].mask) & table[square].mask;
+    while(occupiedBoard != 0) {
         table[square].offset[computeHashTableIndex(occupiedBoard, table[square])] = calculateRookBishopAttacks(square, occupiedBoard, movementDelta);
         occupiedBoard = (occupiedBoard - table[square].mask) & table[square].mask;
-    } while(occupiedBoard != 0);
+    }
 }
 
 bool Board::applyMove(Move& move) {
@@ -547,20 +569,19 @@ void Board::applyMoveWithUndo(Move& move, UndoData& undo) {
 void Board::applyNormalMoveWithUndo(Move& move, UndoData& undo) {
     ColorPiece from = squares[move.getFrom()];
     ColorPiece to = squares[move.getTo()];
-
-    Piece fromType = getPieceType(from);
-    Piece toType = getPieceType(to);
    
     //If we capture a piece OR move a pawn, reset the fifty move rule
-    if(fromType == Pawn || to != Empty) {
+    if(getPieceType(from) == Pawn || to != Empty) {
         plies = 0;
     } else {
         plies++;
     }
-    pieces[fromType] ^= (1ull << move.getFrom()) ^ (1ull << move.getTo());
+    pieces[getPieceType(from)] ^= (1ull << move.getFrom()) ^ (1ull << move.getTo());
     sides[turn] ^= (1ull << move.getFrom()) ^ (1ull << move.getTo());
 
-    pieces[toType] ^= (1ull << move.getTo());
+    if(to != Empty) {
+        pieces[getPieceType(to)] ^= (1ull << move.getTo());
+    }
     sides[turn == White ? Black : White] ^= (1ull << move.getTo());
 
     squares[move.getFrom()] = Empty;
@@ -573,7 +594,7 @@ void Board::applyNormalMoveWithUndo(Move& move, UndoData& undo) {
     //psqt and hash
 
     //if we move 2 forward, set enpassant data
-    if(fromType == Pawn && (move.getTo() ^ move.getFrom()) == 16
+    if(getPieceType(from) == Pawn && (move.getTo() ^ move.getFrom()) == 16
     && 0 != (pieces[Pawn] & sides[turn == White ? Black : White] & PrecomputedBinary::getBinary().getAdjacentFilesMask(getFileIndexOfSquare(move.getFrom())) & (turn == White ? Rank4 : Rank5))) {
         enpassantSquare = getSquare(turn == White ? from + 8 : from - 8);
         //TODO: hash
@@ -745,7 +766,7 @@ bool Board::isMovePseudoLegal(Move& move) {
     Piece fromType = getPieceType(squares[move.getFrom()]);
 
     //The following are illegal moves that are theoretically valid as moves in our encoding
-    if(move.isMoveNone() || getColorOfPiece(squares[move.getFrom()]) != turn || (move.getPromoType() != Move::MovePromotionType::KnightPromotion && !move.isMovePromotion()) || (move.getMoveType() == Move::MoveType::Castle && fromType != King)) {
+    if(move.isMoveNone() || getColorOfPiece(squares[move.getFrom()]) != turn || (move.getPromoType() != Move::MovePromotionType::PromoteKnight && !move.isMovePromotion()) || (move.getMoveType() == Move::MoveType::Castle && fromType != King)) {
         return false;
     }
 
@@ -799,7 +820,7 @@ bool Board::isMovePseudoLegal(Move& move) {
         Square rookFrom = getSquare(popLsb(rookCopy));
         //Castling is encoded as the rook's square being the king's destination
         if(rookFrom != move.getTo()) {
-            return false;
+            continue;
         }
         //Alright, we know this rook matches what we have.
         Square rookTo = getRookCastlingSquare(move.getFrom(), rookFrom);
@@ -810,13 +831,12 @@ bool Board::isMovePseudoLegal(Move& move) {
                             | PrecomputedBinary::getBinary().getBetweenSquaresMask(rookFrom, rookTo) | (1ull << rookTo);
         between &= ~((1ull << move.getFrom()) | (1ull << rookFrom));
         if((occupiedBoard & between) != 0) {
-            return 0; //we went through stuff
+            continue; //we went through stuff
         }
-        Bitboard kingTravelSquares = PrecomputedBinary::getBinary().getBetweenSquaresMask(move.getFrom(), kingTo);
-        while(kingTravelSquares != 0) {
-            if(isSquareAttacked(getSquare(popLsb(kingTravelSquares)), turn)) {
-                return 0; //we went through check
-            }
+        
+        //if we go through check
+        if(isSquareInBoardAttacked(PrecomputedBinary::getBinary().getBetweenSquaresMask(move.getFrom(), kingTo), turn)) {
+            continue;
         }
         //we did a totally legal castling move
         return true;
@@ -862,7 +882,6 @@ void Board::addNormalMoves(std::vector<Move>& moveList, Bitboard targets, Square
 
 void Board::addNonPawnNormalMoves(std::vector<Move>& moveList, Piece type, Bitboard targets, Bitboard sources, Bitboard occupiedBoard) {
     assert(type != Pawn && type != Queen); //queen should be given separately as rook and bishop
-
     //Have the switch on the outside of the loops so we don't have to rely on branch prediction not being dumb
     switch(type) {
         case King: {
@@ -898,10 +917,19 @@ void Board::addNonPawnNormalMoves(std::vector<Move>& moveList, Piece type, Bitbo
     }
 }
 
+bool Board::isSquareInBoardAttacked(Bitboard board, Color turn) {
+    while(board != 0) {
+        if(isSquareAttacked(getSquare(popLsb(board)), turn)) {
+            return true;
+        }
+    }
+    return false;
+}
+
 int Board::generateAllNoisyMoves(std::vector<Move>& moveList) {
     const int startSize = moveList.size();
     Color inverseSide = turn == White ? Black : White;
-    Bitboard occupiedBoard = sides[White] & sides[Black];
+    Bitboard occupiedBoard = sides[White] | sides[Black];
 
     Bitboard opponents = sides[inverseSide];
 
@@ -912,7 +940,7 @@ int Board::generateAllNoisyMoves(std::vector<Move>& moveList) {
 
     //If we are in check by >1 piece, the only legal way to get out of it is to move the king
     if(isNonSingular(kingAttackers)) {
-        addNonPawnNormalMoves(moveList, King, sides[turn] & pieces[King], opponents, occupiedBoard);
+        addNonPawnNormalMoves(moveList, King, opponents, sides[turn] & pieces[King], occupiedBoard);
         return moveList.size() - startSize;
     }
 
@@ -920,9 +948,9 @@ int Board::generateAllNoisyMoves(std::vector<Move>& moveList) {
     addEnpassantMoves(moveList, enpassantSources, enpassantSquare);
 
     const int sideDirection = turn == White ? -1 : 1;
-    const int left = sideDirection * 7;
-    const int right = sideDirection * 9;
-    const int forward = sideDirection * 8;
+    const int left = sideDirection * (NumFiles - 1);
+    const int right = sideDirection * (NumFiles + 1);
+    const int forward = sideDirection * NumFiles;
 
     Bitboard leftPawnAttacks = getPawnLeftAttacks(sides[turn] & pieces[Pawn], sides[inverseSide], turn);
     Bitboard rightPawnAttacks = getPawnRightAttacks(sides[turn] & pieces[Pawn], sides[inverseSide], turn);
@@ -939,12 +967,11 @@ int Board::generateAllNoisyMoves(std::vector<Move>& moveList) {
     addPawnMoves(moveList, rightPawnAttacks & opponents, right);
     addPawnPromotions(moveList, promoteLeftCapture, left);
     addPawnPromotions(moveList, promoteRightCapture, right);
-
-    addNonPawnNormalMoves(moveList, Knight, sides[turn] & pieces[Knight], opponents, occupiedBoard);
-    addNonPawnNormalMoves(moveList, Bishop, sides[turn] & (pieces[Bishop] | pieces[Queen]), opponents, occupiedBoard);
-    addNonPawnNormalMoves(moveList, Rook, sides[turn] & (pieces[Rook] | pieces[Queen]), opponents, occupiedBoard);
+    addNonPawnNormalMoves(moveList, Knight, opponents, sides[turn] & pieces[Knight], occupiedBoard);
+    addNonPawnNormalMoves(moveList, Bishop, opponents, sides[turn] & (pieces[Bishop] | pieces[Queen]), occupiedBoard);
+    addNonPawnNormalMoves(moveList, Rook, opponents, sides[turn] & (pieces[Rook] | pieces[Queen]), occupiedBoard);
     //TODO: Does this need to be sides[inverseSide]?
-    addNonPawnNormalMoves(moveList, King, sides[turn] & pieces[King], opponents, occupiedBoard);
+    addNonPawnNormalMoves(moveList, King, opponents, sides[turn] & pieces[King], occupiedBoard);
 
     return moveList.size() - startSize;
 }
@@ -953,21 +980,75 @@ int Board::generateAllQuietMoves(std::vector<Move>& moveList) {
     const int startSize = moveList.size();
 
     Bitboard occupiedBoard = sides[White] | sides[Black];
-    //move the king if >1 checker
+    //move the king if >1 checker, since that's the only legal way to get out of check
     if(isNonSingular(kingAttackers)) {
-        addNonPawnNormalMoves(moveList, King, sides[turn] & piece[King], ~occupiedBoard, occupiedBoard);
+        addNonPawnNormalMoves(moveList, King, sides[turn] & pieces[King], ~occupiedBoard, occupiedBoard);
         return moveList.size() - startSize;
     }
-    
-    //
-    Bitboard 
+    //All pseudo-legal quiet king moves that aren't castling are just moving the king
+    addNonPawnNormalMoves(moveList, King, ~occupiedBoard, sides[turn] & pieces[King], occupiedBoard);
+    //Castling (similar logic to isMovePseudoLegal)
+    Bitboard rookCopy = castlingRooks & sides[turn];
+    if(kingAttackers == 0) { //if we aren't in check
+        while(rookCopy != 0) {
+            Square rookFrom = getSquare(popLsb(rookCopy));
+            Square kingFrom = getSquare(getLsb(sides[turn] & pieces[King]));
+
+            Square rookTo = getRookCastlingSquare(kingFrom, rookFrom);
+            Square kingTo = getKingCastlingSquare(kingFrom, rookFrom);
+            
+            Bitboard betweenSquares = PrecomputedBinary::getBinary().getBetweenSquaresMask(kingFrom, kingTo) | PrecomputedBinary::getBinary().getBetweenSquaresMask(rookFrom, rookTo) | (1ull << kingTo) | (1ull << rookTo);
+            //don't count the squares they are on
+            betweenSquares &= ~((1ull << rookFrom) | (1ull << kingFrom));
+            if((occupiedBoard & betweenSquares) != 0) {
+                //this cannot be the rook, as we pass through things
+                continue;
+            }
+            if(isSquareInBoardAttacked(PrecomputedBinary::getBinary().getBetweenSquaresMask(kingFrom, kingTo), turn)) {
+                continue; //we went through check
+            }
+            moveList.emplace_back(kingFrom, rookFrom, Move::MoveType::Castle);
+        }
+    }
+
+    //If we are not in check, all the noncaptures (the remaining quiet moves) are just spots
+    //on ~occupiedBoard. If we are in check, the only quiet way to get out is to block the piece
+    Bitboard targetSquares;
+    if(kingAttackers != 0) {
+        targetSquares = PrecomputedBinary::getBinary().getBetweenSquaresMask(getSquare(getLsb(pieces[King] & sides[turn])), getSquare(getLsb(kingAttackers)));
+    } else {
+        targetSquares = ~occupiedBoard;
+    }
 
     //pawn moves forward 1 and 2 that don't promote
-    Bitboard pawnsForwardOne = ~LastRanks & getPawnAdvances(piece[Pawns] & sides[turn], occupiedBoard);
-    addPawnMoves()
-    Bitboard pawnsForwardTwo = getPawnAd
+    Bitboard pawnsForwardOne = ~LastRanks & getPawnAdvances(pieces[Pawn] & sides[turn], occupiedBoard, turn);
+    addPawnMoves(moveList, pawnsForwardOne & targetSquares, turn == White ? -NumFiles : NumFiles);
+
+    Bitboard pawnsForwardTwo = getPawnAdvances(pawnsForwardOne & (turn == White ? Rank3 : Rank6), occupiedBoard, turn);
+    addPawnMoves(moveList, pawnsForwardTwo & targetSquares, turn == White ? -(2 * NumFiles) : (2 * NumFiles));
+
+    addNonPawnNormalMoves(moveList, Knight, targetSquares, sides[turn] & pieces[Knight], occupiedBoard);
+    addNonPawnNormalMoves(moveList, Bishop, targetSquares, sides[turn] & (pieces[Bishop] | pieces[Queen]), occupiedBoard);
+    addNonPawnNormalMoves(moveList, Rook, targetSquares, sides[turn] & (pieces[Rook] | pieces[Queen]), occupiedBoard);
+    return moveList.size() - startSize;
 }
 
 int Board::generateAllLegalMoves(std::vector<Move>& moveList) {
+    const int startSize = moveList.size();
+    std::vector<Move> pseudoLegalMoves;
 
+    generateAllNoisyMoves(pseudoLegalMoves);
+    generateAllQuietMoves(pseudoLegalMoves);
+
+    undoStack.emplace_back();
+    for(Move& move : pseudoLegalMoves) {
+        //check legality
+        applyMoveWithUndo(move, undoStack.back());
+        if(!didLastMoveLeaveInCheck()) {
+            moveList.emplace_back(move);
+        }
+        revertMove(move, undoStack.back());
+    }
+
+    return moveList.size() - startSize;
 }
