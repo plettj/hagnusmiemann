@@ -2,6 +2,8 @@
 #include "move.h"
 #include <algorithm>
 
+int ep = 0;
+
 Board::Index Board::getFileIndexOfSquare(Board::Square square) {
     assert(square != None);
     //squares are laid out sequentially in rank, so their file is mod 8
@@ -282,7 +284,7 @@ Bitboard Board::getPawnAdvances(Bitboard pawnBoard, Bitboard occupiedBoard, Boar
 }
 
 Bitboard Board::getPawnEnpassantCaptures(Bitboard pawnBoard, Board::Square enpassantSquare, Color side) {
-    return (enpassantSquare == None) ? 0 : PrecomputedBinary::getBinary().getPawnAttacksFromSquare(enpassantSquare, side) & pawnBoard;
+    return (enpassantSquare == None) ? 0 : PrecomputedBinary::getBinary().getPawnAttacksFromSquare(enpassantSquare, flipColor(side)) & pawnBoard;
 }
 
 Bitboard Board::getAllSquareAttackers(Bitboard occupiedBoard, Board::Square square) {
@@ -297,7 +299,7 @@ Bitboard Board::getAllSquareAttackers(Bitboard occupiedBoard, Board::Square squa
 Bitboard Board::getAllKingAttackers() {
     Square square = getSquare(getLsb(sides[turn] & pieces[King]));
     Bitboard occupiedBoard = sides[White] | sides[Black];
-    return getAllSquareAttackers(occupiedBoard, square);
+    return getAllSquareAttackers(occupiedBoard, square) & sides[flipColor(turn)];
 }
 
 bool Board::isSquareAttacked(Square square, Board::Color side) {
@@ -477,29 +479,12 @@ unsigned long long Board::perftTest(int depth) {
     std::vector<Move> moveList;
 
     generateAllNoisyMoves(moveList);
-    std::cerr << "Noisy" << moveList.size() << std::endl;
     generateAllQuietMoves(moveList);
-    std::cerr << "Quiet + Noisy" << moveList.size() << std::endl;
 
     for(Move& move : moveList) {
-        if(move.toString() == "e1e2") {
-            std::cerr << "here" << std::endl;
-        }
         applyMoveWithUndo(move, undoStack.back());
         if(!didLastMoveLeaveInCheck()) {
             numMoves += perftTest(depth - 1);
-        } else {
-           /* Square kingSquare = getSquare(getLsb(sides[flipColor(turn)] & pieces[King]));
-            std::cerr << squareToString(kingSquare) << std::endl;
-            std::cerr << debugIsSquareAttacked(kingSquare, flipColor(turn)) << std::endl;
-            std::cerr << move.toString() << std::endl;
-            debugPrintBitboard(pieces[Knight]);
-            std::cerr << std::endl;
-            debugPrintBitboard(sides[Black]);
-            std::cerr << std::endl;
-            debugPrintBitboard(kingAttackers);
-            std::cerr << turn << std::endl;
-            */
         }
         revertMove(move, undoStack.back());
     }
@@ -558,17 +543,6 @@ bool Board::applyMove(Move& move) {
 }
 
 bool Board::didLastMoveLeaveInCheck() {
-    if(sides[flipColor(turn)] == 0) 
-    {
-        std::cerr << "side" << std::endl;
-
-    } else if(pieces[King] == 0) {
-        std::cerr << "king" << std::endl;
-
-    } else if((pieces[King] & sides[flipColor(turn)]) == 0) {
-        std::cerr << "both" << std::endl;
-    }
-
     Square kingSquare = getSquare(getLsb(sides[flipColor(turn)] & pieces[King]));
     return isSquareAttacked(kingSquare, flipColor(turn));
 }
@@ -591,23 +565,23 @@ void Board::applyMoveWithUndo(Move& move, UndoData& undo) {
     fullmoves++;
 
     switch(move.getMoveType()) {
-	case Move::MoveType::Normal:
-	    applyNormalMoveWithUndo(move, undo);
-	    break;
-	case Move::MoveType::Castle:
-	    applyCastlingMoveWithUndo(move, undo);
-	    break;
-	case Move::MoveType::Enpassant:
-	    applyEnpassantMoveWithUndo(move, undo);
-	    break;
-	case Move::MoveType::Promotion:
-	    applyPromotionMoveWithUndo(move, undo);  
-        break;  
+	    case Move::MoveType::Normal:
+	        applyNormalMoveWithUndo(move, undo);
+	        break;
+	    case Move::MoveType::Castle:
+	        applyCastlingMoveWithUndo(move, undo);
+	        break;
+	    case Move::MoveType::Enpassant:
+	        applyEnpassantMoveWithUndo(move, undo);
+	        break;
+	    case Move::MoveType::Promotion:
+	        applyPromotionMoveWithUndo(move, undo);  
+            break;  
     }
 
     //if the enpassant square was not updated (i.e. no 2 pawn forward move was played),
     //then enpassant expires and we must remove it
-    if(enpassantSquare != undo.enpassantSquare) {
+    if(enpassantSquare == undo.enpassantSquare) {
         enpassantSquare = None;
     }
     //flip whose turn it is
@@ -620,6 +594,16 @@ void Board::applyNormalMoveWithUndo(Move& move, UndoData& undo) {
     ColorPiece to = squares[move.getTo()];
    
     //If we capture a piece OR move a pawn, reset the fifty move rule
+    //TODO: There's a bug here
+    if(from == Empty) {
+        std::cout << move.toString() << std::endl;
+        debugPrintBitboard(sides[turn]);
+        debugPrintBitboard(sides[flipColor(turn)]);
+        std::cout << to << std::endl;
+        if(to != Empty) {
+            debugPrintBitboard(pieces[getPieceType(to)]);
+        }
+    }
     if(getPieceType(from) == Pawn || to != Empty) {
         plies = 0;
     } else {
@@ -639,18 +623,16 @@ void Board::applyNormalMoveWithUndo(Move& move, UndoData& undo) {
 
     castlingRooks &= castleMasks[move.getFrom()];
     castlingRooks &= castleMasks[move.getTo()];
-
+    undo.pieceCaptured = to;
     //TODO:
     //psqt and hash
 
     //if we move 2 forward, set enpassant data
     if(getPieceType(from) == Pawn && (move.getTo() ^ move.getFrom()) == 16
-    && 0 != (pieces[Pawn] & sides[flipColor(turn)] & PrecomputedBinary::getBinary().getAdjacentFilesMask(getFileIndexOfSquare(move.getFrom())) & (turn == White ? Rank4 : Rank5))) {
+    && 0 != (pieces[Pawn] & sides[flipColor(turn)] & PrecomputedBinary::getBinary().getAdjacentFilesMask(getFileIndexOfSquare(move.getFrom())) & ((turn == White) ? Rank4 : Rank5))) {
         enpassantSquare = getSquare((turn == White) ? move.getFrom() + 8 : move.getFrom() - 8);
         //TODO: hash
     }
-
-    undo.pieceCaptured = to;
 }
 
 Board::Square Board::getKingCastlingSquare(Board::Square king, Board::Square rook) {
@@ -749,6 +731,13 @@ void Board::revertMove(Move& move, UndoData& undo) {
 
     switch(move.getMoveType()) {
         case Move::MoveType::Normal: {
+            if(squares[move.getTo()] == Empty) {
+                std::cout << move.toString() << std::endl;
+                debugPrintBitboard(sides[flipColor(turn)]);
+                debugPrintBitboard(sides[turn]);
+                debugPrintBitboard(pieces[Pawn]);
+                std::cout << enpassantSquare << std::endl;
+            }
             Piece fromType = getPieceType(squares[move.getTo()]);
 
             pieces[fromType] ^= (1ull << move.getFrom()) ^ (1ull << move.getTo());
@@ -796,7 +785,8 @@ void Board::revertMove(Move& move, UndoData& undo) {
             break;
         }
         case Move::MoveType::Enpassant: {
-            Square enpassantCaptureSquare = getSquare(move.getTo() - 8 + (turn >> 4));
+            int turnBit = turn == White ? 0 : 1;
+            Square enpassantCaptureSquare = getSquare(move.getTo() - 8 + (turnBit << 4));
 
             pieces[Pawn] ^= (1ull << move.getFrom()) ^ (1ull << move.getTo());
             sides[turn] ^= (1ull << move.getFrom()) ^ (1ull << move.getTo());
@@ -900,7 +890,6 @@ bool Board::isMoveLegal(Move& move) {
     Square kingSquare = getSquare(getLsb(pieces[King] & sides[flipColor(turn)]));
     return isMovePseudoLegal(move) && !isSquareAttacked(kingSquare, flipColor(turn));
 }
-
 void Board::addEnpassantMoves(std::vector<Move>& moveList, Bitboard sources, Square enpassantSquare) {
     while(sources != 0) {
         moveList.emplace_back(getSquare(popLsb(sources)), enpassantSquare, Move::MoveType::Enpassant);
@@ -1032,7 +1021,7 @@ int Board::generateAllQuietMoves(std::vector<Move>& moveList) {
     Bitboard occupiedBoard = sides[White] | sides[Black];
     //move the king if >1 checker, since that's the only legal way to get out of check
     if(isNonSingular(kingAttackers)) {
-        addNonPawnNormalMoves(moveList, King, sides[turn] & pieces[King], ~occupiedBoard, occupiedBoard);
+        addNonPawnNormalMoves(moveList, King, ~occupiedBoard, sides[turn] & pieces[King], occupiedBoard);
         return moveList.size() - startSize;
     }
     //All pseudo-legal quiet king moves that aren't castling are just moving the king
