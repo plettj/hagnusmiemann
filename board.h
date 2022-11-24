@@ -236,7 +236,7 @@ public:
      * Returns whether or not the move was legal (if it was not, it rejects the move)
      */ 
     bool applyMove(Move& move);
-    int countLegalMoves();
+    int countLegalMoves(); // TODO
     //TODO: plenty of things that help us later can go here
     //like determining if a move is tactical or not
     bool isMoveLegal(Move& move);
@@ -246,7 +246,7 @@ public:
      */
     bool didLastMoveLeaveInCheck();
  
-    bool isSquareAttacked(Square square, Color side);
+    bool isSquareAttacked(Square square, Color side); // the side of the piece on the square, not the attacking team.
     unsigned long long perftTest(int depth);
 private:
     /**

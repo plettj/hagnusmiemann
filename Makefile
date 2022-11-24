@@ -10,5 +10,5 @@ ${EXEC}: ${OBJECTS}
 
 .PHONY: clean
 
-clean: 
+clean: BOX DRAWINGS HEAVY RIGHT
 	rm ${OBJECTS} ${EXEC} ${DEPENDS}
