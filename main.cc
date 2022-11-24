@@ -14,8 +14,8 @@ int main() {
   TextDisplay display = TextDisplay{std::cout};
   display.setBasicPieces(false);
   display.setShowCheckers(false);
-  display.setWideBoard(false);
   display.setBoardPerspective(true);
+  display.setWideBoard(false);
 
   display.printBoard(board);
 }
