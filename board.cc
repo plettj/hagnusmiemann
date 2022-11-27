@@ -1,8 +1,8 @@
 #include "board.h"
 #include "move.h"
 #include <algorithm>
-
-int ep = 0;
+#include <map>
+#include <chrono>
 
 Board::Index Board::getFileIndexOfSquare(Board::Square square) {
     assert(square != None);
@@ -292,7 +292,7 @@ Bitboard Board::getAllSquareAttackers(Bitboard occupiedBoard, Board::Square squa
 	   | (PrecomputedBinary::getBinary().getPawnAttacksFromSquare(square, Black) & sides[White] & pieces[Pawn])
 	   | (PrecomputedBinary::getBinary().getKnightAttacksFromSquare(square) & pieces[Knight])
 	   | (PrecomputedBinary::getBinary().getBishopAttacksFromSquare(square, occupiedBoard) & (pieces[Bishop] | pieces[Queen]))
-	   | (PrecomputedBinary::getBinary().getRookAttacksFromSquare(square, occupiedBoard) & (pieces[Rook] | pieces[Rook]))
+	   | (PrecomputedBinary::getBinary().getRookAttacksFromSquare(square, occupiedBoard) & (pieces[Rook] | pieces[Queen]))
 	   | (PrecomputedBinary::getBinary().getKingAttacksFromSquare(square) & pieces[King]);
 }
 
@@ -469,7 +469,28 @@ Board::Color Board::getTurn() const {
     return turn;
 };
 
-unsigned long long Board::perftTest(int depth) {
+void Board::perftTest(int depth) {
+    perftRootDepth = depth;
+    std::map<std::string, int> divideTree;
+    int promotions = 0;
+    int castles = 0;
+    int enpassant = 0;
+
+    auto start = std::chrono::system_clock::now();
+    unsigned long long nodes = perft(divideTree, depth, enpassant, promotions, castles);
+    auto end = std::chrono::system_clock::now();
+
+    std::cout << "Perft test generated " << nodes << " in "  << std::chrono::duration_cast<std::chrono::milliseconds>((end - start)).count() << " milliseconds." << std::endl;
+    std::cout << "Promotion moves in leaf nodes:" << promotions << std::endl;
+    std::cout << "Castling moves in leaf nodes:" << castles << std::endl;
+    std::cout << "Enpassant moves in leaf nodes:" << enpassant << std::endl;
+    std::cout << "Divide tree:" << std::endl;
+    for(auto const& x : divideTree) {
+        std::cout << x.first << ":" << x.second << std::endl;
+    }
+ }
+
+unsigned long long Board::perft(std::map<std::string, int>& divideTree, int depth, int& enpassant, int& promotions, int& castles) {
     if(depth == 0) {
         return 1;
     }
@@ -484,7 +505,20 @@ unsigned long long Board::perftTest(int depth) {
     for(Move& move : moveList) {
         applyMoveWithUndo(move, undoStack.back());
         if(!didLastMoveLeaveInCheck()) {
-            numMoves += perftTest(depth - 1);
+            if(depth == 1) {
+                if(move.getMoveType() == Move::MoveType::Enpassant) {
+                    enpassant++;
+                } else if(move.getMoveType() == Move::MoveType::Promotion) {
+                    promotions++;
+                } else if(move.getMoveType() == Move::MoveType::Castle) {
+                    castles++;
+                }
+            }
+            int subNodes = perft(divideTree, depth - 1, enpassant, promotions, castles);
+            if(depth == perftRootDepth) {
+                divideTree[move.toString()] += subNodes;
+            }
+            numMoves += subNodes;
         }
         revertMove(move, undoStack.back());
     }
@@ -646,6 +680,7 @@ Board::Square Board::getRookCastlingSquare(Board::Square king, Board::Square roo
 void Board::applyCastlingMoveWithUndo(Move& move, Board::UndoData& undo) {
     Square kingFrom = move.getFrom();
     Square rookFrom = move.getTo();
+    assert(getPieceType(squares[kingFrom]) == King);
 
     Square kingTo = getKingCastlingSquare(kingFrom, rookFrom);
     Square rookTo = getRookCastlingSquare(kingFrom, rookFrom);
@@ -688,13 +723,13 @@ void Board::applyEnpassantMoveWithUndo(Move& move, Board::UndoData& undo) {
 }
 
 void Board::applyPromotionMoveWithUndo(Move& move, Board::UndoData& undo) {
-    ColorPiece promotedPiece = makePiece(move.getMovePromoPiece(), turn);
+    ColorPiece promotedPiece = makePiece(move.getPromoType(), turn);
     ColorPiece capturedPiece = squares[move.getTo()];
 
     //promotion resets the fifty move rule
     plies = 0;
     pieces[Pawn] ^= (1ull << move.getFrom());
-    pieces[move.getMovePromoPiece()] ^= (1ull << move.getTo());
+    pieces[move.getPromoType()] ^= (1ull << move.getTo());
     sides[turn] ^= (1ull << move.getFrom()) ^ (1ull << move.getTo());
 
     if(capturedPiece != Empty) {
@@ -772,7 +807,7 @@ void Board::revertMove(Move& move, UndoData& undo) {
         }
         case Move::MoveType::Promotion: {
             pieces[Pawn] ^= (1ull << move.getFrom());
-            pieces[move.getMovePromoPiece()] ^= (1ull << move.getTo());
+            pieces[move.getPromoType()] ^= (1ull << move.getTo());
             sides[turn] ^= (1ull << move.getFrom()) ^ (1ull << move.getTo());
 
             if(undo.pieceCaptured != Empty) {
@@ -808,7 +843,7 @@ bool Board::isMovePseudoLegal(Move& move) {
     Piece fromType = getPieceType(squares[move.getFrom()]);
 
     //The following are illegal moves that are theoretically valid as moves in our encoding
-    if(move.isMoveNone() || getColorOfPiece(squares[move.getFrom()]) != turn || (move.getPromoType() != Move::MovePromotionType::PromoteKnight && !move.isMovePromotion()) || (move.getMoveType() == Move::MoveType::Castle && fromType != King)) {
+    if(move.isMoveNone() || getColorOfPiece(squares[move.getFrom()]) != turn || (move.getPromoType() != Knight && !move.isMovePromotion()) || (move.getMoveType() == Move::MoveType::Castle && fromType != King)) {
         return false;
     }
 
@@ -907,10 +942,10 @@ void Board::addPawnPromotions(std::vector<Move>& moveList, Bitboard targets, int
     while(targets != 0) {
         Square square = getSquare(popLsb(targets));
         //bias our move ordering QNRB since that's the most likely order of promotions (a moral victory, there is a 0% chance this has impact on playing strength)
-        moveList.emplace_back(getSquare(square + directionPawnIsIn), square, Move::MoveType::Promotion, Move::MovePromotionType::PromoteQueen);
-        moveList.emplace_back(getSquare(square + directionPawnIsIn), square, Move::MoveType::Promotion, Move::MovePromotionType::PromoteKnight);
-        moveList.emplace_back(getSquare(square + directionPawnIsIn), square, Move::MoveType::Promotion, Move::MovePromotionType::PromoteRook);
-        moveList.emplace_back(getSquare(square + directionPawnIsIn), square, Move::MoveType::Promotion, Move::MovePromotionType::PromoteBishop);
+        moveList.emplace_back(getSquare(square + directionPawnIsIn), square, Move::MoveType::Promotion, Queen);
+        moveList.emplace_back(getSquare(square + directionPawnIsIn), square, Move::MoveType::Promotion, Knight);
+        moveList.emplace_back(getSquare(square + directionPawnIsIn), square, Move::MoveType::Promotion, Rook);
+        moveList.emplace_back(getSquare(square + directionPawnIsIn), square, Move::MoveType::Promotion, Bishop);
     }
 }
 
@@ -1009,8 +1044,9 @@ int Board::generateAllNoisyMoves(std::vector<Move>& moveList) {
     addNonPawnNormalMoves(moveList, Knight, opponents, sides[turn] & pieces[Knight], occupiedBoard);
     addNonPawnNormalMoves(moveList, Bishop, opponents, sides[turn] & (pieces[Bishop] | pieces[Queen]), occupiedBoard);
     addNonPawnNormalMoves(moveList, Rook, opponents, sides[turn] & (pieces[Rook] | pieces[Queen]), occupiedBoard);
-    //TODO: Does this need to be sides[inverseSide]?
-    addNonPawnNormalMoves(moveList, King, opponents, sides[turn] & pieces[King], occupiedBoard);
+    //Note: This is not opponents in the third argument, since a valid noisy move to get out of check
+    //is for the king to capture a non-checking piece. This was a very annoying bug to find.
+    addNonPawnNormalMoves(moveList, King, sides[flipColor(turn)], sides[turn] & pieces[King], occupiedBoard);
 
     return moveList.size() - startSize;
 }
@@ -1040,7 +1076,7 @@ int Board::generateAllQuietMoves(std::vector<Move>& moveList) {
             //don't count the squares they are on
             betweenSquares &= ~((1ull << rookFrom) | (1ull << kingFrom));
             if((occupiedBoard & betweenSquares) != 0) {
-                //this cannot be the rook, as we pass through things
+                //we cannot castle here, as we pass through things
                 continue;
             }
             if(isSquareInBoardAttacked(PrecomputedBinary::getBinary().getBetweenSquaresMask(kingFrom, kingTo), turn)) {

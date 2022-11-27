@@ -5,7 +5,7 @@
 #include <string>
 #include <array>
 #include <vector>
-
+#include <map>
 
 class Move;
 
@@ -247,7 +247,12 @@ public:
     bool didLastMoveLeaveInCheck();
  
     bool isSquareAttacked(Square square, Color side); // the side of the piece on the square, not the attacking team.
-    unsigned long long perftTest(int depth);
+    /**
+     * Runs a PERFormance Tree test, which brute force generates all possible legal moves in the next *depth* nodes
+     * from the current board state. Leaves the board in the state it was in prior.
+     * Good for benchmarks and move generation correctness tests. 
+     */
+    void perftTest(int depth);
 private:
     /**
      * Your friendly neighbourhood singleton of computation stuff.
@@ -364,6 +369,9 @@ private:
     int moveCounter;
     Square enpassantSquare;
 
+
+    unsigned long long perft(std::map<std::string, int>& divideTree, int depth, int& enpassant, int& promotions, int& castles);
+    int perftRootDepth;
 
     /**
      * All of these methods take every square on the given Bitboard as a target square (iterating over them),
