@@ -45,11 +45,11 @@ void TextDisplay::printBoard(Board& board) {
         if (gameOver) {
             switch (rank) {
                 case 2:
-                    out << " ┌──────────────────┐"; break;
+                    out << " ╭──────────────────╮"; break;
                 case 3: case 4:
                     out << " │ " << gameMessage[rank - 3]; break;
                 case 5:
-                    out << " └──────────────────┘";
+                    out << " ╰──────────────────╯";
             }
         } else if (rank == 6 && checked && !gameOver) {
             out << "   ⟐  " << (turn ? "Black" : "White") << " is in check.";
