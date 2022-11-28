@@ -39,29 +39,29 @@ uint64_t ZobristNums::getSquare(Board::Color pieceColor, Board::Piece pieceType,
 ZobristNums& zn = ZobristNums::getZobrist();
 
 
-uint64_t newPosition() {
+uint64_t zobristNewPosition() {
     return 0;
 }
 
 
-uint64_t changePiece(uint64_t hash, Board::Color pieceColor, Board::Piece pieceType, Board::Square pieceLocation) {
-   return hash xor zn.getSquare(pieceColor, pieceType, pieceLocation);
+void zobristChangePiece(uint64_t& hash, Board::Color pieceColor, Board::Piece pieceType, Board::Square pieceLocation) {
+   hash ^= zn.getSquare(pieceColor, pieceType, pieceLocation);
 }
 
 
-uint64_t flipPlayerToMove(uint64_t hash) {
-    return hash xor zn.getSquare(static_cast<Board::Color>(0), static_cast<Board::Piece>(0), static_cast<Board::Square>(0));
+void zobristFlipColor(uint64_t& hash) {
+    hash ^= zn.getSquare(static_cast<Board::Color>(0), static_cast<Board::Piece>(0), static_cast<Board::Square>(0));
 }
 
 
-uint64_t changeCastleRights(uint64_t hash, Board::Color side, bool isKingside) {
-    if (side == Board::White && isKingside) return hash xor zn.getSquare(static_cast<Board::Color>(0), static_cast<Board::Piece>(0), static_cast<Board::Square>(1));
-    if (side == Board::White && !isKingside) return hash xor zn.getSquare(static_cast<Board::Color>(0), static_cast<Board::Piece>(0), static_cast<Board::Square>(2));
-    if (side != Board::White && isKingside) return hash xor zn.getSquare(static_cast<Board::Color>(0), static_cast<Board::Piece>(0), static_cast<Board::Square>(3));
-    return hash xor zn.getSquare(static_cast<Board::Color>(0), static_cast<Board::Piece>(0), static_cast<Board::Square>(4));
+void zobristChangeCastleRights(uint64_t& hash, Board::Color side, bool isKingside) {
+    if (side == Board::White && isKingside) hash ^= zn.getSquare(static_cast<Board::Color>(0), static_cast<Board::Piece>(0), static_cast<Board::Square>(1));
+    if (side == Board::White && !isKingside) hash ^= zn.getSquare(static_cast<Board::Color>(0), static_cast<Board::Piece>(0), static_cast<Board::Square>(2));
+    if (side != Board::White && isKingside) hash ^= zn.getSquare(static_cast<Board::Color>(0), static_cast<Board::Piece>(0), static_cast<Board::Square>(3));
+    hash ^= zn.getSquare(static_cast<Board::Color>(0), static_cast<Board::Piece>(0), static_cast<Board::Square>(4));
 }
 
 
-uint64_t changeEnPassant(uint64_t hash, Board::Index file) {
-    return hash xor zn.getSquare(static_cast<Board::Color>(1), static_cast<Board::Piece>(0), static_cast<Board::Square>(0));
+void zobristChangeEnPassant(uint64_t& hash, Board::Index file) {
+    hash ^= zn.getSquare(static_cast<Board::Color>(1), static_cast<Board::Piece>(0), static_cast<Board::Square>(0));
 }

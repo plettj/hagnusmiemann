@@ -22,4 +22,10 @@ public:
     uint64_t getSquare(Board::Color pieceColor, Board::Piece pieceType, Board::Square pieceLocation);
 };
 
+uint64_t zobristNewPosition();
+void zobristChangePiece(uint64_t hash, Board::Color pieceColor, Board::Piece pieceType, Board::Square pieceLocation);
+void zobristFlipColor(uint64_t hash);
+void zobristChangeCastleRights(uint64_t hash, Board::Color side, bool isKingside);
+void zobristChangeEnPassant(uint64_t hash, Board::Index file);
+
 #endif
