@@ -52,6 +52,11 @@
         "typeinfo": "cpp",
         "chrono": "cpp",
         "valarray": "cpp",
-        "semaphore": "cpp"
+        "semaphore": "cpp",
+        "list": "cpp",
+        "map": "cpp",
+        "set": "cpp",
+        "mutex": "cpp",
+        "condition_variable": "cpp"
     }
 }
