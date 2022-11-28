@@ -18,7 +18,8 @@ ZobristNums::ZobristNums() {
         }
     }
     
-    //First index is for color of piece
+
+    // First index is for color of piece
     // Second index is for each type of piece (ordered as in board)
     // second nested array is for each square (0 ... 63)
     // i.e. zorbistNums[0][1][9] is a white knight on a2 
@@ -29,32 +30,38 @@ ZobristNums::ZobristNums() {
 }
 
 
-ZobristHash::ZobristHash(ZobristNums *zn) : zn{zn} {}
+uint64_t ZobristNums::getSquare(Board::Color pieceColor, Board::Piece pieceType, Board::Square pieceLocation) {
+    return zobristNums[pieceColor][pieceType][pieceLocation];
+}
 
 
-uint64_t ZobristHash::newPosition() {
+// create singleton that our zobrist methods requires access to
+ZobristNums& zn = ZobristNums::getZobrist();
+
+
+uint64_t newPosition() {
     return 0;
 }
 
 
-uint64_t ZobristHash::changePiece(uint64_t hash, Board::Piece pieceType, Board::Square pieceLocation, Board::Color pieceColor) {
-   return hash xor zn->zobristNums[pieceColor][pieceType][pieceLocation];
+uint64_t changePiece(uint64_t hash, Board::Color pieceColor, Board::Piece pieceType, Board::Square pieceLocation) {
+   return hash xor zn.getSquare(pieceColor, pieceType, pieceLocation);
 }
 
 
-uint64_t ZobristHash::flipPlayerToMove(uint64_t hash) {
-    return hash xor zn->zobristNums[0][0][0];
+uint64_t flipPlayerToMove(uint64_t hash) {
+    return hash xor zn.getSquare(static_cast<Board::Color>(0), static_cast<Board::Piece>(0), static_cast<Board::Square>(0));
 }
 
 
-uint64_t ZobristHash::changeCastleRights(uint64_t hash, Board::Color side, bool isKingside) {
-    if (side == Board::White && isKingside) return hash xor zn->zobristNums[0][0][1];
-    if (side == Board::White && !isKingside) return hash xor zn->zobristNums[0][0][2];
-    if (side != Board::White && isKingside) return hash xor zn->zobristNums[0][0][3];
-    return hash xor zn->zobristNums[0][0][4];
+uint64_t changeCastleRights(uint64_t hash, Board::Color side, bool isKingside) {
+    if (side == Board::White && isKingside) return hash xor zn.getSquare(static_cast<Board::Color>(0), static_cast<Board::Piece>(0), static_cast<Board::Square>(1));
+    if (side == Board::White && !isKingside) return hash xor zn.getSquare(static_cast<Board::Color>(0), static_cast<Board::Piece>(0), static_cast<Board::Square>(2));
+    if (side != Board::White && isKingside) return hash xor zn.getSquare(static_cast<Board::Color>(0), static_cast<Board::Piece>(0), static_cast<Board::Square>(3));
+    return hash xor zn.getSquare(static_cast<Board::Color>(0), static_cast<Board::Piece>(0), static_cast<Board::Square>(4));
 }
 
 
-uint64_t ZobristHash::changeEnPassant(uint64_t hash, Board::Index file) {
-    return hash xor zn->zobristNums[1][0][file];
+uint64_t changeEnPassant(uint64_t hash, Board::Index file) {
+    return hash xor zn.getSquare(static_cast<Board::Color>(1), static_cast<Board::Piece>(0), static_cast<Board::Square>(0));
 }

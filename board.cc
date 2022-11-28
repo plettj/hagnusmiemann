@@ -1,5 +1,6 @@
 #include "board.h"
 #include "move.h"
+#include "zobrist.h"
 #include <algorithm>
 #include <map>
 #include <chrono>
