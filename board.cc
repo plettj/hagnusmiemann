@@ -498,7 +498,7 @@ unsigned long long Board::perft(std::map<std::string, int>& divideTree, int dept
     unsigned long long numMoves = 0;
     
     undoStack.emplace_back();
-    std::vector<Move> moveList;
+    std::vector<Move> moveList{MaxNumMoves};
 
     generateAllNoisyMoves(moveList);
     generateAllQuietMoves(moveList);
@@ -631,7 +631,7 @@ void Board::applyNormalMoveWithUndo(Move& move, UndoData& undo) {
     ColorPiece from = squares[move.getFrom()];
     ColorPiece to = squares[move.getTo()];
    
-    //TODO: There's a bug here
+    //If we capture a piece OR move a pawn, reset the fifty move rule
     if(from == Empty) {
         std::cout << move.toString() << std::endl;
         debugPrintBitboard(sides[turn]);
@@ -770,6 +770,11 @@ void Board::applyPromotionMoveWithUndo(Move& move, Board::UndoData& undo) {
     undo.pieceCaptured = capturedPiece;
 
     castlingRooks &= castleMasks[move.getTo()];
+}
+
+int Board::countLegalMoves() {
+    std::vector<Move> moveList{MaxNumMoves};
+    return generateAllLegalMoves(moveList);
 }
 
 void Board::revertMostRecent(Move& move) {
@@ -1136,7 +1141,7 @@ int Board::generateAllQuietMoves(std::vector<Move>& moveList) {
 
 int Board::generateAllLegalMoves(std::vector<Move>& moveList) {
     const int startSize = moveList.size();
-    std::vector<Move> pseudoLegalMoves;
+    std::vector<Move> pseudoLegalMoves{MaxNumMoves};
 
     generateAllNoisyMoves(pseudoLegalMoves);
     generateAllQuietMoves(pseudoLegalMoves);

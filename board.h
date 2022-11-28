@@ -30,6 +30,7 @@ public:
     * if we want to adapt code to work with other chess variants
     */ 
     enum Constants {
+        MaxNumMoves = 236, //A (not too precise) upper bound on the number of pseudo-legal moves in a chess position. This allows us to allocate our vectors of a certain size right away, without having to do any reallocs.
         NumSquares = 64, NumColors = 2,
 	    NumRanks = 8, NumFiles = 8,
 	    NumPieces = 6 //in the future, probably add NumPhases (for middle/endgame) and NumContinuations (for search)?
@@ -236,9 +237,10 @@ public:
      * Returns whether or not the move was legal (if it was not, it rejects the move)
      */ 
     bool applyMove(Move& move);
-    int countLegalMoves(); // TODO
+    int countLegalMoves();
     //TODO: plenty of things that help us later can go here
     //like determining if a move is tactical or not
+
     bool isMoveLegal(Move& move);
     bool isMovePseudoLegal(Move& move);
     /**
