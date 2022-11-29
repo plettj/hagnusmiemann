@@ -642,7 +642,7 @@ void Board::applyNormalMoveWithUndo(Move& move, UndoData& undo) {
         }
     }
 
-    //zobrist hash
+    //zobrist hash update
     zobristChangePiece(undo.positionHash, getColorOfPiece(from), getPieceType(from), move.getFrom());
     zobristChangePiece(undo.positionHash, getColorOfPiece(from), getPieceType(from), move.getTo());
     if (to != Empty) zobristChangePiece(undo.positionHash, getColorOfPiece(to), getPieceType(to), move.getTo());
@@ -698,7 +698,7 @@ void Board::applyCastlingMoveWithUndo(Move& move, Board::UndoData& undo) {
     Square kingTo = getKingCastlingSquare(kingFrom, rookFrom);
     Square rookTo = getRookCastlingSquare(kingFrom, rookFrom);
 
-    //zobrist hash
+    //zobrist hash update
     zobristChangePiece(undo.positionHash, getColorOfPiece(squares[move.getFrom()]), King, kingTo);
     zobristChangePiece(undo.positionHash, getColorOfPiece(squares[move.getFrom()]), King, kingFrom);
     zobristChangePiece(undo.positionHash, getColorOfPiece(squares[move.getFrom()]), Rook, rookTo);
@@ -726,7 +726,7 @@ void Board::applyCastlingMoveWithUndo(Move& move, Board::UndoData& undo) {
 void Board::applyEnpassantMoveWithUndo(Move& move, Board::UndoData& undo) { 
     Square capturedSquare = getSquare(move.getTo() - 8 + (turn << 4));
 
-    //zobrist hash
+    //zobrist hash update
     zobristChangePiece(undo.positionHash, getColorOfPiece(squares[move.getFrom()]), Pawn, move.getTo());
     zobristChangePiece(undo.positionHash, getColorOfPiece(squares[move.getFrom()]), Pawn, move.getFrom());
     zobristChangePiece(undo.positionHash, flipColor(getColorOfPiece(squares[move.getFrom()])), Pawn, capturedSquare);
@@ -749,6 +749,11 @@ void Board::applyPromotionMoveWithUndo(Move& move, Board::UndoData& undo) {
     ColorPiece promotedPiece = makePiece(move.getPromoType(), turn);
     ColorPiece capturedPiece = squares[move.getTo()];
 
+    //zobrist hash update
+    zobristChangePiece(undo.positionHash, getColorOfPiece(promotedPiece), Pawn, move.getFrom());
+    zobristChangePiece(undo.positionHash, getColorOfPiece(promotedPiece), move.getPromoType(), move.getTo());
+    if (capturedPiece != Empty) zobristChangePiece(undo.positionHash, getColorOfPiece(capturedPiece), getPieceType(capturedPiece), move.getTo());
+
     //promotion resets the fifty move rule
     plies = 0;
     pieces[Pawn] ^= (1ull << move.getFrom());
@@ -765,8 +770,6 @@ void Board::applyPromotionMoveWithUndo(Move& move, Board::UndoData& undo) {
     undo.pieceCaptured = capturedPiece;
 
     castlingRooks &= castleMasks[move.getTo()];
-
-    //TODO: hash
 }
 
 void Board::revertMostRecent(Move& move) {
