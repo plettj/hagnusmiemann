@@ -1,6 +1,26 @@
 #include "io.h"
 
-void TextDisplay::printBoard(Board& board) {
+IO::IO(std::istream& in) {
+    input = new TextInput{in};
+}
+void IO::makeTextOutput(std::ostream& out) {
+    TextOutput* textOutput = new TextOutput{input, out};
+    outputs.push_back(textOutput);
+}
+void IO::toggleSetting(int setting) {
+    for (auto out : outputs) out->toggleSetting(setting);
+}
+void IO::makeGraphicOutput() {
+    // TODO
+}
+void IO::display(Board& board) {
+    input->notifyOutputs(board);
+}
+
+TextOutput::TextOutput(Input* toFollow, std::ostream& out): Output{toFollow}, out{out} {
+    toFollow->attach(this);
+}
+void TextOutput::display(Board& board) {
     Board::Square kingSquare = board.getKing();
     Board::Color turn = board.getTurn();
 
@@ -71,9 +91,45 @@ void TextDisplay::printBoard(Board& board) {
     out << std::endl;
 
 }
+void TextOutput::toggleSetting(int setting) {
+    switch (setting) {
+        case 0:
+            basicPieces = !basicPieces;
+            break;
+        case 1:
+            showCheckers = !showCheckers;
+            break;
+        case 2:
+            boardPerspective = !boardPerspective;
+            break;
+        case 3: 
+            wideBoard = !wideBoard;
+            break;
+    }
+}
 
-void TextDisplay::setBasicPieces(bool basic) { basicPieces = basic; }
-void TextDisplay::setShowCheckers(bool checkers) { showCheckers = checkers; }
-void TextDisplay::setBoardPerspective(bool perspective) { boardPerspective = perspective; }
-void TextDisplay::setWideBoard(bool wide) { wideBoard = wide; }
+GraphicalOutput::GraphicalOutput(Input* toFollow): Output{toFollow} {
+    toFollow->attach(this);
+}
+void GraphicalOutput::display(Board& board) {
+    // TODO
+}
+void GraphicalOutput::toggleSetting(int setting) {
+    // TODO
+}
 
+void TextInput::attach(Output* output) {
+    outputs.emplace_back(output);
+}
+void TextInput::detach(Output* output) {
+    // Run through the outputs [observers] until we find the matching Output*.
+    for (auto it = outputs.begin(); it != outputs.end(); ++it) {
+        if (*it == output) {
+            outputs.erase(it);
+            break;
+        }
+    }
+}
+void TextInput::notifyOutputs(Board& board) {
+    for (auto out : outputs) out->display(board);
+}
