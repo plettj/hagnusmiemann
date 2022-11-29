@@ -617,10 +617,13 @@ void Board::applyMoveWithUndo(Move& move, UndoData& undo) {
     //if the enpassant square was not updated (i.e. no 2 pawn forward move was played),
     //then enpassant expires and we must remove it
     if(enpassantSquare == undo.enpassantSquare) {
+        if (0 <= enpassantSquare && enpassantSquare <= 63) zobristChangeEnPassant(positionHash, static_cast<Board::Index>(enpassantSquare%8));
         enpassantSquare = None;
     }
+
     //flip whose turn it is
     turn = flipColor(turn);
+    zobristFlipColor(positionHash);
     kingAttackers = getAllKingAttackers();
 }
 
@@ -628,7 +631,6 @@ void Board::applyNormalMoveWithUndo(Move& move, UndoData& undo) {
     ColorPiece from = squares[move.getFrom()];
     ColorPiece to = squares[move.getTo()];
    
-    //If we capture a piece OR move a pawn, reset the fifty move rule
     //TODO: There's a bug here
     if(from == Empty) {
         std::cout << move.toString() << std::endl;
@@ -639,6 +641,17 @@ void Board::applyNormalMoveWithUndo(Move& move, UndoData& undo) {
             debugPrintBitboard(pieces[getPieceType(to)]);
         }
     }
+
+    //zobrist hash
+    zobristChangePiece(undo.positionHash, getColorOfPiece(from), getPieceType(from), move.getFrom());
+    zobristChangePiece(undo.positionHash, getColorOfPiece(from), getPieceType(from), move.getTo());
+    if (to != Empty) zobristChangePiece(undo.positionHash, getColorOfPiece(to), getPieceType(to), move.getTo());
+    if(getPieceType(from) == Pawn && (move.getTo() ^ move.getFrom()) == 16
+    && 0 != (pieces[Pawn] & sides[flipColor(turn)] & PrecomputedBinary::getBinary().getAdjacentFilesMask(getFileIndexOfSquare(move.getFrom())) & ((turn == White) ? Rank4 : Rank5))) {
+        zobristChangeEnPassant(positionHash, static_cast<Board::Index>(enpassantSquare%8));
+    }
+
+    //If we capture a piece OR move a pawn, reset the fifty move rule
     if(getPieceType(from) == Pawn || to != Empty) {
         plies = 0;
     } else {
@@ -666,7 +679,6 @@ void Board::applyNormalMoveWithUndo(Move& move, UndoData& undo) {
     if(getPieceType(from) == Pawn && (move.getTo() ^ move.getFrom()) == 16
     && 0 != (pieces[Pawn] & sides[flipColor(turn)] & PrecomputedBinary::getBinary().getAdjacentFilesMask(getFileIndexOfSquare(move.getFrom())) & ((turn == White) ? Rank4 : Rank5))) {
         enpassantSquare = getSquare((turn == White) ? move.getFrom() + 8 : move.getFrom() - 8);
-        //TODO: hash
     }
 }
 
@@ -685,6 +697,8 @@ void Board::applyCastlingMoveWithUndo(Move& move, Board::UndoData& undo) {
 
     Square kingTo = getKingCastlingSquare(kingFrom, rookFrom);
     Square rookTo = getRookCastlingSquare(kingFrom, rookFrom);
+
+    
     
     pieces[King] ^= (1ull << kingFrom) ^ (1ull << kingTo);
     sides[turn] ^= (1ull << kingFrom) ^ (1ull << kingTo);
