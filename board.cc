@@ -698,7 +698,11 @@ void Board::applyCastlingMoveWithUndo(Move& move, Board::UndoData& undo) {
     Square kingTo = getKingCastlingSquare(kingFrom, rookFrom);
     Square rookTo = getRookCastlingSquare(kingFrom, rookFrom);
 
-    
+    //zobrist hash
+    zobristChangePiece(undo.positionHash, getColorOfPiece(squares[move.getFrom()]), static_cast<Board::Piece>(5), kingTo);
+    zobristChangePiece(undo.positionHash, getColorOfPiece(squares[move.getFrom()]), static_cast<Board::Piece>(5), kingFrom);
+    zobristChangePiece(undo.positionHash, getColorOfPiece(squares[move.getFrom()]), static_cast<Board::Piece>(3), rookTo);
+    zobristChangePiece(undo.positionHash, getColorOfPiece(squares[move.getFrom()]), static_cast<Board::Piece>(3), rookFrom);
     
     pieces[King] ^= (1ull << kingFrom) ^ (1ull << kingTo);
     sides[turn] ^= (1ull << kingFrom) ^ (1ull << kingTo);
