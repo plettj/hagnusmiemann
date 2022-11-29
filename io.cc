@@ -21,8 +21,8 @@ TextOutput::TextOutput(Input* toFollow, std::ostream& out): Output{toFollow}, ou
     toFollow->attach(this);
 }
 void TextOutput::display(Board& board) {
-    Board::Square kingSquare = board.getKing();
-    Board::Color turn = board.getTurn();
+    Square kingSquare = board.getKing();
+    Color turn = board.getTurn();
 
     bool gameOver = false; // TODO!
 
@@ -33,16 +33,16 @@ void TextOutput::display(Board& board) {
     bool blackPerspective = (boardPerspective && static_cast<bool>(turn));
 
     out << "   " << "╔═════════════════" << ((wideBoard) ? "═══════" : "") << (basicPieces && !showCheckers ? "" : "═") << "╗" << std::endl;
-    for (int rank = 0; rank < Board::NumRanks; ++rank) {
+    for (int rank = 0; rank < NumRanks; ++rank) {
         int realRank = (blackPerspective) ? rank : 7 - rank;
 
         out << " " << realRank + 1 << " ║" << ((wideBoard) ? "" : " ");
 
-        for (int file = 0; file < Board::NumFiles; ++file) {
+        for (int file = 0; file < NumFiles; ++file) {
             int realFile = (blackPerspective) ? 7 - file : file;
 
-            Board::Square square = Board::getSquare(realRank, realFile);
-            Board::ColorPiece piece = board.getPieceAt(square);
+            Square square = Board::getSquare(realRank, realFile);
+            ColorPiece piece = board.getPieceAt(square);
             int pieceInt = piece / 4 * 2 + piece % 2;
             if (pieceInt >= 12) { // blank square
                 if (showCheckers) {
@@ -83,7 +83,7 @@ void TextOutput::display(Board& board) {
     }
     out << std::endl << "   " << (wideBoard ? "" : " ");
 
-    for (int file = 0; file < Board::NumFiles; ++file) {
+    for (int file = 0; file < NumFiles; ++file) {
         int realFile = (blackPerspective) ? 7 - file : file;
         out << " " << ((wideBoard) ? " " : "") << static_cast<char>(realFile + 97);
     }

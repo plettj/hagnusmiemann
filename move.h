@@ -2,7 +2,7 @@
 #define _MOVE_H_CHESS
 #include <string>
 #include <iostream>
-#include "board.h"
+#include "constants.h"
 
 /**
  * More or less a POD class to store moves
@@ -20,27 +20,28 @@ public:
 	    Promotion
     };
 
-    /* Creates an empty move.
+    /* 
+     * Creates an empty move.
      * NOTE: moves are immutable, so doing this cannot be changed
      */
     Move();
-    Move(Board::Square from, Board::Square to, MoveType moveType, Board::Piece promotionPiece = Board::Piece::Knight);
+    Move(Square from, Square to, MoveType moveType, Piece promotionPiece = Piece::Knight);
+    Move& operator=(const Move& move);
 
-    Board::Square getFrom() const;
-    Board::Square getTo() const;
+    Square getFrom() const;
+    Square getTo() const;
     MoveType getMoveType() const;
-    Board::Piece getPromoType() const;
+    Piece getPromoType() const;
     bool isMoveNone() const;
     bool isMovePromotion() const;
 
     void print(std::ostream& out) const;
     std::string toString() const;
 private:
-   // const MoveBits moveBits;
-    const Board::Square from;
-    const Board::Square to;
-    const MoveType moveType;
-    const Board::Piece promotionType;
+    Square from;
+    Square to;
+    MoveType moveType;
+    Piece promotionType;
 };
 
 #endif

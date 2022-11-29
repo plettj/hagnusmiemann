@@ -5,48 +5,48 @@
 #include <map>
 #include <chrono>
 
-Board::Index Board::getFileIndexOfSquare(Board::Square square) {
+Index Board::getFileIndexOfSquare(Square square) {
     assert(square != None);
     //squares are laid out sequentially in rank, so their file is mod 8
     return static_cast<Index>(square % NumFiles);
 }
 
-Board::Index Board::getRankIndexOfSquare(Board::Square square) {
+Index Board::getRankIndexOfSquare(Square square) {
     assert(square != None);
     //ranks are groups of 8 (numFiles) in the layout, so truncate and divide
     return static_cast<Index>(square / NumFiles);
 }
 
-Board::Index Board::getMirrorFileIndex(Board::Index fileIndex) {
+Index Board::getMirrorFileIndex(Index fileIndex) {
     //compile time optimization
     /*const static Index Mirror[] = {Zero, One, Two, Three, Three, Two, One};
     return Mirror[fileIndex];*/
     return fileIndex > 3 ? (static_cast<Index>(7 - fileIndex)) : fileIndex;
 }
 
-Board::Index Board::getRelativeRankIndexOfSquare(Board::Color side, Board::Square square) {
+Index Board::getRelativeRankIndexOfSquare(Color side, Square square) {
     assert(square != None);
     //get the rank our piece is on relative to our starting side
     return side == White ? getRankIndexOfSquare(square) : static_cast<Index>(7 - getRankIndexOfSquare(square));
 }
 
-Board::Square Board::getSquare(Board::Index rankIndex, Board::Index fileIndex) {
+Square Board::getSquare(Index rankIndex, Index fileIndex) {
     return getSquare(rankIndex * NumFiles + fileIndex);
 }
 
-Board::Square Board::getRelativeSquare(Board::Color side, Board::Square square) {
+Square Board::getRelativeSquare(Color side, Square square) {
     assert(square != None);
     //get the relative square ours is on relative to our side
     return getSquare(getRelativeRankIndexOfSquare(side, square), getFileIndexOfSquare(square));
 }
 
-Board::Square Board::getRelativeSquare32(Board::Color side, Board::Square square) {
+Square Board::getRelativeSquare32(Color side, Square square) {
     assert(square != None);
     //get the relative square ours is on relative to our side and limited to the left half of the board
     return getSquare(4 * getRelativeRankIndexOfSquare(side, square) + getMirrorFileIndex(getFileIndexOfSquare(square)));
 }
 
-Board::SquareColor Board::getSquareColor(Board::Square square) {
+Board::SquareColor Board::getSquareColor(Square square) {
     assert(square != None);
     return testBit(LightSquares, square) ? LightSquares : DarkSquares; 
 }
@@ -87,17 +87,17 @@ bool Board::isNonSingular(Bitboard bb) {
     return bb & (bb - 1);
 }
 
-void Board::setBit(Bitboard& bb, Board::Square bit) {
+void Board::setBit(Bitboard& bb, Square bit) {
     assert(!testBit(bb, bit));
     bb ^= 1ull << bit;
 }
 
-void Board::clearBit(Bitboard& bb, Board::Square bit) {
+void Board::clearBit(Bitboard& bb, Square bit) {
     assert(testBit(bb, bit));
     bb ^= 1ull << bit;
 }
 
-bool Board::testBit(Bitboard bb, Board::Square bit) {
+bool Board::testBit(Bitboard bb, Square bit) {
     assert(bit != None);
     return bb & (1ull << bit);
 }
@@ -146,7 +146,7 @@ std::string Board::squareToString(Square square) {
     return output;
 }
 
-Board::Square Board::squareFromString(const std::string& string) {
+Square Board::squareFromString(const std::string& string) {
     assert(string.size() <= 2);
     if(string == "-") {
         return None;
@@ -154,7 +154,7 @@ Board::Square Board::squareFromString(const std::string& string) {
     return getSquare(string[1] - '1', string[0] - 'a');
 }
 
-Board::Board() : positionHash{0}, pawnKingHash{0}, kingAttackers{0}, castlingRooks{0}, turn{White}, plies{0}, fullmoves{0} {
+Board::Board() : positionHash{0}, kingAttackers{0}, castlingRooks{0}, turn{White}, plies{0}, fullmoves{0} {
     for(int i = 0; i < 8; i++) {
         pieces[i] = 0;
     }
@@ -239,56 +239,56 @@ void Board::PrecomputedBinary::init() {
     hasBeenInitialized = true;
 }
 
-Bitboard Board::PrecomputedBinary::getBetweenSquaresMask(Board::Square square1, Board::Square square2) {
+Bitboard Board::PrecomputedBinary::getBetweenSquaresMask(Square square1, Square square2) {
     assert(square1 != None && square2 != None);
     return BetweenSquaresMasks[square1][square2];
 }
 
-Bitboard Board::PrecomputedBinary::getAdjacentFilesMask(Board::Index fileIndex) {
+Bitboard Board::PrecomputedBinary::getAdjacentFilesMask(Index fileIndex) {
     return AdjacentFilesMasks[fileIndex];
 }
 
-Bitboard Board::PrecomputedBinary::getKnightAttacksFromSquare(Board::Square square) {
+Bitboard Board::PrecomputedBinary::getKnightAttacksFromSquare(Square square) {
     return KnightAttack[square];
 }
 
-Bitboard Board::PrecomputedBinary::getKingAttacksFromSquare(Board::Square square) {
+Bitboard Board::PrecomputedBinary::getKingAttacksFromSquare(Square square) {
     return KingAttack[square];
 }
 
-Bitboard Board::PrecomputedBinary::getPawnAttacksFromSquare(Board::Square square, Board::Color side) {
+Bitboard Board::PrecomputedBinary::getPawnAttacksFromSquare(Square square, Color side) {
     return PawnAttack[side][square];
 }
 
-Bitboard Board::PrecomputedBinary::getBishopAttacksFromSquare(Board::Square square, Bitboard occupiedBoard) {
+Bitboard Board::PrecomputedBinary::getBishopAttacksFromSquare(Square square, Bitboard occupiedBoard) {
     return BishopTable[square].offset[computeHashTableIndex(occupiedBoard, BishopTable[square])];
 }
 
-Bitboard Board::PrecomputedBinary::getRookAttacksFromSquare(Board::Square square, Bitboard occupiedBoard) {
+Bitboard Board::PrecomputedBinary::getRookAttacksFromSquare(Square square, Bitboard occupiedBoard) {
     return RookTable[square].offset[computeHashTableIndex(occupiedBoard, RookTable[square])];
 }
 
-Bitboard Board::PrecomputedBinary::getQueenAttacksFromSquare(Board::Square square, Bitboard occupiedBoard) {
+Bitboard Board::PrecomputedBinary::getQueenAttacksFromSquare(Square square, Bitboard occupiedBoard) {
     return getBishopAttacksFromSquare(square, occupiedBoard) | getRookAttacksFromSquare(square, occupiedBoard);
 }
 
-Bitboard Board::getPawnLeftAttacks(Bitboard pawnBoard, Bitboard targets, Board::Color side) {
+Bitboard Board::getPawnLeftAttacks(Bitboard pawnBoard, Bitboard targets, Color side) {
     return targets & (side == White ? (pawnBoard << 7) & ~FileH : (pawnBoard >> 7) & ~FileA);
 }
 
-Bitboard Board::getPawnRightAttacks(Bitboard pawnBoard, Bitboard targets, Board::Color side) {
+Bitboard Board::getPawnRightAttacks(Bitboard pawnBoard, Bitboard targets, Color side) {
     return targets & (side == White ? (pawnBoard << 9) & ~FileA : (pawnBoard >> 9) & ~FileH);
 }
 
-Bitboard Board::getPawnAdvances(Bitboard pawnBoard, Bitboard occupiedBoard, Board::Color side) {
+Bitboard Board::getPawnAdvances(Bitboard pawnBoard, Bitboard occupiedBoard, Color side) {
     return ~occupiedBoard & (side == White ? pawnBoard << 8 : pawnBoard >> 8);
 }
 
-Bitboard Board::getPawnEnpassantCaptures(Bitboard pawnBoard, Board::Square enpassantSquare, Color side) {
+Bitboard Board::getPawnEnpassantCaptures(Bitboard pawnBoard, Square enpassantSquare, Color side) {
     return (enpassantSquare == None) ? 0 : PrecomputedBinary::getBinary().getPawnAttacksFromSquare(enpassantSquare, flipColor(side)) & pawnBoard;
 }
 
-Bitboard Board::getAllSquareAttackers(Bitboard occupiedBoard, Board::Square square) {
+Bitboard Board::getAllSquareAttackers(Bitboard occupiedBoard, Square square) {
     return (PrecomputedBinary::getBinary().getPawnAttacksFromSquare(square, White) & sides[Black] & pieces[Pawn])
 	   | (PrecomputedBinary::getBinary().getPawnAttacksFromSquare(square, Black) & sides[White] & pieces[Pawn])
 	   | (PrecomputedBinary::getBinary().getKnightAttacksFromSquare(square) & pieces[Knight])
@@ -303,7 +303,7 @@ Bitboard Board::getAllKingAttackers() {
     return getAllSquareAttackers(occupiedBoard, square) & sides[flipColor(turn)];
 }
 
-bool Board::isSquareAttacked(Square square, Board::Color side) {
+bool Board::isSquareAttacked(Square square, Color side) {
     Bitboard enemyPieces = sides[flipColor(side)];
     Bitboard occupiedBoard = sides[White] | sides[Black];
 
@@ -321,7 +321,7 @@ bool Board::isSquareAttacked(Square square, Board::Color side) {
     || ((enemyRooks != 0) && ((PrecomputedBinary::getBinary().getRookAttacksFromSquare(square, occupiedBoard) & enemyRooks) != 0));
 }
 
-bool Board::debugIsSquareAttacked(Square square, Board::Color side) {
+bool Board::debugIsSquareAttacked(Square square, Color side) {
     Bitboard enemyPieces = sides[flipColor(side)];
     Bitboard occupiedBoard = sides[White] | sides[Black];
 
@@ -459,14 +459,15 @@ std::string Board::getFEN() const {
     return "not implemented yet";
 }
 
-Board::ColorPiece Board::getPieceAt(Square square) const {
+ColorPiece Board::getPieceAt(Square square) const {
     assert(square != None);
     return squares[square];
 };
-Board::Square Board::getKing() const {
+
+Square Board::getKing() const {
     return getSquare(getLsb(pieces[King] & sides[turn]));
 };
-Board::Color Board::getTurn() const {
+Color Board::getTurn() const {
     return turn;
 };
 
@@ -521,7 +522,7 @@ unsigned long long Board::perft(std::map<std::string, int>& divideTree, int dept
             }
             numMoves += subNodes;
         }
-        revertMove(move, undoStack.back());
+        revertMove(undoStack.back());
     }
     undoStack.pop_back();
     return numMoves;
@@ -570,7 +571,7 @@ bool Board::applyMove(Move& move) {
     undoStack.emplace_back();
     applyMoveWithUndo(move, undoStack.back());
     if(!didLastMoveLeaveInCheck()) {
-        revertMove(move, undoStack.back());
+        revertMove(undoStack.back());
         undoStack.pop_back();
         return false;
     }
@@ -590,12 +591,12 @@ void Board::applyLegalMove(Move& move) {
 
 void Board::applyMoveWithUndo(Move& move, UndoData& undo) {
     undo.positionHash = positionHash;
-    undo.pawnKingHash = pawnKingHash;
     undo.kingAttackers = kingAttackers;
     undo.castlingRooks = castlingRooks;
     undo.enpassantSquare = enpassantSquare;
     undo.plies = plies;
-    
+    undo.move = move;
+
     //TODO: store hash in history
     fullmoves++;
 
@@ -614,10 +615,14 @@ void Board::applyMoveWithUndo(Move& move, UndoData& undo) {
             break;  
     }
 
+    //TODO: zobrist castling rights
+
     //if the enpassant square was not updated (i.e. no 2 pawn forward move was played),
     //then enpassant expires and we must remove it
     if(enpassantSquare == undo.enpassantSquare) {
-        if (0 <= enpassantSquare && enpassantSquare <= 63) zobristChangeEnPassant(positionHash, static_cast<Board::Index>(enpassantSquare%8));
+        if (enpassantSquare != None) {
+            zobristChangeEnPassant(positionHash, getFileIndexOfSquare(enpassantSquare));
+        } 
         enpassantSquare = None;
     }
 
@@ -630,27 +635,7 @@ void Board::applyMoveWithUndo(Move& move, UndoData& undo) {
 void Board::applyNormalMoveWithUndo(Move& move, UndoData& undo) {
     ColorPiece from = squares[move.getFrom()];
     ColorPiece to = squares[move.getTo()];
-   
-    //If we capture a piece OR move a pawn, reset the fifty move rule
-    if(from == Empty) {
-        std::cout << move.toString() << std::endl;
-        debugPrintBitboard(sides[turn]);
-        debugPrintBitboard(sides[flipColor(turn)]);
-        std::cout << to << std::endl;
-        if(to != Empty) {
-            debugPrintBitboard(pieces[getPieceType(to)]);
-        }
-    }
-
-    //zobrist hash update
-    zobristChangePiece(undo.positionHash, getColorOfPiece(from), getPieceType(from), move.getFrom());
-    zobristChangePiece(undo.positionHash, getColorOfPiece(from), getPieceType(from), move.getTo());
-    if (to != Empty) zobristChangePiece(undo.positionHash, getColorOfPiece(to), getPieceType(to), move.getTo());
-    if(getPieceType(from) == Pawn && (move.getTo() ^ move.getFrom()) == 16
-    && 0 != (pieces[Pawn] & sides[flipColor(turn)] & PrecomputedBinary::getBinary().getAdjacentFilesMask(getFileIndexOfSquare(move.getFrom())) & ((turn == White) ? Rank4 : Rank5))) {
-        zobristChangeEnPassant(positionHash, static_cast<Board::Index>(enpassantSquare%8));
-    }
-
+  
     //If we capture a piece OR move a pawn, reset the fifty move rule
     if(getPieceType(from) == Pawn || to != Empty) {
         plies = 0;
@@ -659,11 +644,15 @@ void Board::applyNormalMoveWithUndo(Move& move, UndoData& undo) {
     }
     pieces[getPieceType(from)] ^= (1ull << move.getFrom()) ^ (1ull << move.getTo());
     sides[turn] ^= (1ull << move.getFrom()) ^ (1ull << move.getTo());
+    //zobrist hash update
+    zobristChangePiece(undo.positionHash, getColorOfPiece(from), getPieceType(from), move.getFrom());
+    zobristChangePiece(undo.positionHash, getColorOfPiece(from), getPieceType(from), move.getTo());
 
     //if we captured
     if(to != Empty) {
         pieces[getPieceType(to)] ^= (1ull << move.getTo());
         sides[flipColor(turn)] ^= (1ull << move.getTo());
+        zobristChangePiece(undo.positionHash, getColorOfPiece(to), getPieceType(to), move.getTo());
     }
 
     squares[move.getFrom()] = Empty;
@@ -679,14 +668,15 @@ void Board::applyNormalMoveWithUndo(Move& move, UndoData& undo) {
     if(getPieceType(from) == Pawn && (move.getTo() ^ move.getFrom()) == 16
     && 0 != (pieces[Pawn] & sides[flipColor(turn)] & PrecomputedBinary::getBinary().getAdjacentFilesMask(getFileIndexOfSquare(move.getFrom())) & ((turn == White) ? Rank4 : Rank5))) {
         enpassantSquare = getSquare((turn == White) ? move.getFrom() + 8 : move.getFrom() - 8);
+        zobristChangeEnPassant(positionHash, getFileIndexOfSquare(enpassantSquare));
     }
 }
 
-Board::Square Board::getKingCastlingSquare(Board::Square king, Board::Square rook) {
+Square Board::getKingCastlingSquare(Square king, Square rook) {
     return getSquare(getRankIndexOfSquare(king), static_cast<Index>(rook > king ? 6 : 2)); //return the castling square on the king's rank (which corresponds to the file)
 }
 
-Board::Square Board::getRookCastlingSquare(Board::Square king, Board::Square rook) {
+Square Board::getRookCastlingSquare(Square king, Square rook) {
     return getSquare(getRankIndexOfSquare(king), static_cast<Index>(rook > king ? 5 : 3));
 }
 
@@ -752,7 +742,6 @@ void Board::applyPromotionMoveWithUndo(Move& move, Board::UndoData& undo) {
     //zobrist hash update
     zobristChangePiece(undo.positionHash, getColorOfPiece(promotedPiece), Pawn, move.getFrom());
     zobristChangePiece(undo.positionHash, getColorOfPiece(promotedPiece), move.getPromoType(), move.getTo());
-    if (capturedPiece != Empty) zobristChangePiece(undo.positionHash, getColorOfPiece(capturedPiece), getPieceType(capturedPiece), move.getTo());
 
     //promotion resets the fifty move rule
     plies = 0;
@@ -763,6 +752,7 @@ void Board::applyPromotionMoveWithUndo(Move& move, Board::UndoData& undo) {
     if(capturedPiece != Empty) {
         pieces[getPieceType(capturedPiece)] ^= (1ull << move.getTo());
         sides[getColorOfPiece(capturedPiece)] ^= (1ull << move.getTo());
+        zobristChangePiece(undo.positionHash, getColorOfPiece(capturedPiece), getPieceType(capturedPiece), move.getTo());
     }
 
     squares[move.getFrom()] = Empty;
@@ -777,19 +767,19 @@ int Board::countLegalMoves() {
     return generateAllLegalMoves(moveList);
 }
 
-void Board::revertMostRecent(Move& move) {
+void Board::revertMostRecent() {
     //todo: Add stuff here for NMP
-    revertMove(move, undoStack.back());
+    revertMove(undoStack.back());
     undoStack.pop_back();
 }
 
-void Board::revertMove(Move& move, UndoData& undo) {
+void Board::revertMove(UndoData& undo) {
     positionHash = undo.positionHash;
-    pawnKingHash = undo.pawnKingHash;
     kingAttackers = undo.kingAttackers;
     enpassantSquare = undo.enpassantSquare;
     plies = undo.plies;
     castlingRooks = undo.castlingRooks;
+    Move& move = undo.move;
 
     turn = flipColor(turn);
     moveCounter--;
@@ -1139,12 +1129,20 @@ int Board::generateAllQuietMoves(std::vector<Move>& moveList) {
     return moveList.size() - startSize;
 }
 
+int Board::generateAllPseudoLegalMoves(std::vector<Move>& moveList) {
+    const int startSize = moveList.size();
+
+    generateAllNoisyMoves(moveList);
+    generateAllQuietMoves(moveList);
+
+    return moveList.size() - startSize;
+}
+
 int Board::generateAllLegalMoves(std::vector<Move>& moveList) {
     const int startSize = moveList.size();
     std::vector<Move> pseudoLegalMoves{MaxNumMoves};
 
-    generateAllNoisyMoves(pseudoLegalMoves);
-    generateAllQuietMoves(pseudoLegalMoves);
+    generateAllPseudoLegalMoves(pseudoLegalMoves);
 
     undoStack.emplace_back();
     for(Move& move : pseudoLegalMoves) {
@@ -1153,8 +1151,15 @@ int Board::generateAllLegalMoves(std::vector<Move>& moveList) {
         if(!didLastMoveLeaveInCheck()) {
             moveList.emplace_back(move);
         }
-        revertMove(move, undoStack.back());
+        revertMove(undoStack.back());
     }
 
     return moveList.size() - startSize;
+}
+
+Move Board::getLastPlayedMove() {
+    if(undoStack.size() == 0) {
+        return Move{};
+    }
+    return undoStack.back().move;
 }

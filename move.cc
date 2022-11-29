@@ -1,22 +1,32 @@
 #include "move.h"
+#include "board.h"
 
-Move::Move() : from{Board::Square::a1}, to{Board::Square::a1}, moveType{Normal}, promotionType{Board::Piece::Knight} {}
+Move::Move() : from{Square::a1}, to{Square::a1}, moveType{Normal}, promotionType{Piece::Knight} {}
 
-Move::Move(Board::Square from, Board::Square to, Move::MoveType moveType, Board::Piece promoType) : from{from}, to{to}, moveType{moveType}, promotionType{promoType} { }
+Move::Move(Square from, Square to, Move::MoveType moveType, Piece promoType) : from{from}, to{to}, moveType{moveType}, promotionType{promoType} { }
 
-Board::Square Move::getFrom() const {
+Move& Move::operator=(const Move& other) {
+    from = other.from;
+    to = other.to;
+    moveType = other.moveType;
+    promotionType = other.promotionType;
+
+    return *this;
+}
+
+Square Move::getFrom() const {
     return from;
 }
 
 bool Move::isMoveNone() const {
-    return from == Board::Square::a1 && to == Board::Square::a1 && moveType == Normal && promotionType == Board::Piece::Knight;
+    return from == Square::a1 && to == Square::a1 && moveType == Normal && promotionType == Piece::Knight;
 }
 
 bool Move::isMovePromotion() const {
     return getMoveType() == Promotion;
 }
 
-Board::Square Move::getTo() const {
+Square Move::getTo() const {
     return to;
 }
 
@@ -24,7 +34,7 @@ Move::MoveType Move::getMoveType() const {
     return moveType;
 }
 
-Board::Piece Move::getPromoType() const {
+Piece Move::getPromoType() const {
     return promotionType;
 }
 
@@ -33,8 +43,8 @@ void Move::print(std::ostream& out) const {
 }
 
 std::string Move::toString() const {
-    Board::Square from = getFrom();
-    Board::Square to = getTo();
+    Square from = getFrom();
+    Square to = getTo();
     
     std::string fr = Board::squareToString(from);
     std::string t = Board::squareToString(to);
@@ -42,19 +52,19 @@ std::string Move::toString() const {
 
     if(isMovePromotion()) {
         switch(getPromoType()) {
-	        case Board::Piece::King:	
-	        case Board::Piece::Pawn:
+	        case Piece::King:	
+	        case Piece::Pawn:
                 return "AHHHHHHHHHHH"; //that's no bueno
-	        case Board::Piece::Knight:
+	        case Piece::Knight:
 		        fr += "N";
 		        break;
-	        case Board::Piece::Bishop:	
+	        case Piece::Bishop:	
 		        fr += "B";
 		        break;
-	        case Board::Piece::Rook:
+	        case Piece::Rook:
 	            fr += "R";
 	            break;
-	        case Board::Piece::Queen:
+	        case Piece::Queen:
 	            fr += "Q";
 	            break;	
 	    }
