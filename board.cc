@@ -699,10 +699,10 @@ void Board::applyCastlingMoveWithUndo(Move& move, Board::UndoData& undo) {
     Square rookTo = getRookCastlingSquare(kingFrom, rookFrom);
 
     //zobrist hash
-    zobristChangePiece(undo.positionHash, getColorOfPiece(squares[move.getFrom()]), static_cast<Board::Piece>(5), kingTo);
-    zobristChangePiece(undo.positionHash, getColorOfPiece(squares[move.getFrom()]), static_cast<Board::Piece>(5), kingFrom);
-    zobristChangePiece(undo.positionHash, getColorOfPiece(squares[move.getFrom()]), static_cast<Board::Piece>(3), rookTo);
-    zobristChangePiece(undo.positionHash, getColorOfPiece(squares[move.getFrom()]), static_cast<Board::Piece>(3), rookFrom);
+    zobristChangePiece(undo.positionHash, getColorOfPiece(squares[move.getFrom()]), King, kingTo);
+    zobristChangePiece(undo.positionHash, getColorOfPiece(squares[move.getFrom()]), King, kingFrom);
+    zobristChangePiece(undo.positionHash, getColorOfPiece(squares[move.getFrom()]), Rook, rookTo);
+    zobristChangePiece(undo.positionHash, getColorOfPiece(squares[move.getFrom()]), Rook, rookFrom);
     
     pieces[King] ^= (1ull << kingFrom) ^ (1ull << kingTo);
     sides[turn] ^= (1ull << kingFrom) ^ (1ull << kingTo);
@@ -725,6 +725,11 @@ void Board::applyCastlingMoveWithUndo(Move& move, Board::UndoData& undo) {
 
 void Board::applyEnpassantMoveWithUndo(Move& move, Board::UndoData& undo) { 
     Square capturedSquare = getSquare(move.getTo() - 8 + (turn << 4));
+
+    //zobrist hash
+    zobristChangePiece(undo.positionHash, getColorOfPiece(squares[move.getFrom()]), Pawn, move.getTo());
+    zobristChangePiece(undo.positionHash, getColorOfPiece(squares[move.getFrom()]), Pawn, move.getFrom());
+    zobristChangePiece(undo.positionHash, flipColor(getColorOfPiece(squares[move.getFrom()])), Pawn, capturedSquare);
     
     //en passant is a capture, so reset the fifty move rule
     plies = 0;
@@ -738,7 +743,6 @@ void Board::applyEnpassantMoveWithUndo(Move& move, Board::UndoData& undo) {
     squares[move.getTo()] = makePiece(Pawn, turn);
     squares[capturedSquare] = Empty;
     undo.pieceCaptured = makePiece(Pawn, flipColor(turn));
-    //TODO: hash
 }
 
 void Board::applyPromotionMoveWithUndo(Move& move, Board::UndoData& undo) {
