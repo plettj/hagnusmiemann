@@ -22,6 +22,9 @@ void IO::toggleSetting(int setting) {
         case 3: 
             wideBoard = !wideBoard;
             break;
+        case 4:
+            autoMove = !autoMove;
+            break;
     }
 }
 bool IO::getSetting(int setting) {
@@ -34,6 +37,8 @@ bool IO::getSetting(int setting) {
             return boardPerspective;
         case 3: 
             return wideBoard;
+        case 4:
+            return autoMove;
         default:
             return false;
     }
@@ -41,22 +46,60 @@ bool IO::getSetting(int setting) {
 void IO::makeGraphicOutput() {
     // TODO
 }
-void IO::display(Board& board) {
-    input->notifyOutputs(board, std::array<bool, 4>{basicPieces, showCheckers, boardPerspective, wideBoard});
+void IO::display(Board& board, GameState state) {
+    input->notifyOutputs(board, std::array<bool, 4>{basicPieces, showCheckers, boardPerspective, wideBoard}, state);
 }
 
 TextOutput::TextOutput(Input* toFollow, std::ostream& out): Output{toFollow}, out{out} {
     toFollow->attach(this);
 }
-void TextOutput::display(Board& board, std::array<bool, 4> settings) {
+void TextOutput::display(Board& board, std::array<bool, 4> settings, GameState state) {
     Square kingSquare = board.getKing();
     Color turn = board.getTurn();
 
-    bool gameOver = false; // TODO!
+    /*
+    enum GameState {
+        Neutral = 0, WhiteResigned, BlackResigned, WhiteGotMated, BlackGotMated, Stalemate, FiftyMove, Threefold, InsufficientMaterial
+    };
+    */
 
     bool checked = board.isSquareAttacked(kingSquare, turn);
 
-    std::string gameMessage[2] = {"White won by     │", "resignation.     │"};
+    std::string gameMessage[2] = {"", ""};
+    switch (state) {
+        case WhiteResigned:
+            gameMessage[0] = "Black won by      │";
+            gameMessage[1] = "resignation.      │";
+            break;
+        case BlackResigned:
+            gameMessage[0] = "White won by      │";
+            gameMessage[1] = "resignation.      │";
+            break;
+        case WhiteGotMated:
+            gameMessage[0] = "Black won by      │";
+            gameMessage[1] = "checkmate!        │";
+            break;
+        case BlackGotMated:
+            gameMessage[0] = "White won by      │";
+            gameMessage[1] = "checkmate!        │";
+            break;
+        case Stalemate:
+            gameMessage[0] = "Game drawn by     │";
+            gameMessage[1] = "stalemate.        │";
+            break;
+        case FiftyMove:
+            gameMessage[0] = "Game drawn by     │";
+            gameMessage[1] = "the 50-move rule. │";
+            break;
+        case Threefold:
+            gameMessage[0] = "Game drawn by     │";
+            gameMessage[1] = "3-fold repetition.│";
+            break;
+        case InsufficientMaterial:
+            gameMessage[0] = "Game drawn by     │";
+            gameMessage[1] = "scant material.   │";
+            break;
+    }
 
     bool blackPerspective = (settings[2] && static_cast<bool>(turn));
 
@@ -90,23 +133,23 @@ void TextOutput::display(Board& board, std::array<bool, 4> settings) {
         }
 
         out << (settings[0] && !settings[1] ? "" : " ") << "║";
-        if (gameOver) {
+        if (state) {
             switch (rank) {
                 case 2:
-                    out << " ╭──────────────────╮"; break;
+                    out << " ╭───────────────────╮"; break;
                 case 3: case 4:
                     out << " │ " << gameMessage[rank - 3]; break;
                 case 5:
-                    out << " ╰──────────────────╯";
+                    out << " ╰───────────────────╯";
             }
-        } else if (rank == 6 && checked && !gameOver) {
+        } else if (rank == 6 && checked && !state) {
             out << "   ◈  " << (turn ? "Black" : "White") << " is in check.";
         }
         out << std::endl;
     }
 
     out << "   " << "╚═════════════════" << ((settings[3]) ? "═══════" : "") << (settings[0] && !settings[1] ? "" : "═") << "╝";
-    if (!gameOver) {
+    if (!state) {
         out << "   ◈  " << (turn ? "Black" : "White") << " to move.";
     }
     out << std::endl << "   " << (settings[3] ? "" : " ");
@@ -123,7 +166,7 @@ void TextOutput::display(Board& board, std::array<bool, 4> settings) {
 GraphicalOutput::GraphicalOutput(Input* toFollow): Output{toFollow} {
     toFollow->attach(this);
 }
-void GraphicalOutput::display(Board& board, std::array<bool, 4> settings) {
+void GraphicalOutput::display(Board& board, std::array<bool, 4> settings, GameState state) {
     // TODO
 }
 
@@ -139,6 +182,6 @@ void TextInput::detach(Output* output) {
         }
     }
 }
-void TextInput::notifyOutputs(Board& board, std::array<bool, 4> settings) {
-    for (auto out : outputs) out->display(board, settings);
+void TextInput::notifyOutputs(Board& board, std::array<bool, 4> settings, GameState state) {
+    for (auto out : outputs) out->display(board, settings, state);
 }

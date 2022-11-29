@@ -95,4 +95,12 @@ inline Square getSquareFromIndex(int square) {
 enum Index {
 	Zero = 0, One, Two, Three, Four, Five, Six, Seven
 };
+
+/**
+ * Stores the game state, to be understood by our display system.
+ */
+enum GameState {
+    Neutral = 0, WhiteResigned, BlackResigned, WhiteGotMated, BlackGotMated, Stalemate, FiftyMove, Threefold, InsufficientMaterial
+};
+
 #endif

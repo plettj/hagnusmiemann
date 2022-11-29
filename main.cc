@@ -1,12 +1,12 @@
 #include "board.h"
 #include "move.h"
 #include "io.h"
+#include "constants.h"
 #include <iostream>
+#include <sstream>
+#include <regex>
 
 int main() {
-    //Board board = Board::createBoardFromFEN("r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1");
-    //board.perftTest(5);
-
     IO io{std::cin};
     io.makeTextOutput(std::cout);
 
@@ -31,26 +31,84 @@ int main() {
     // 12. perft [int]              Does a Perft test with [int]
 
     std::pair<int, int> scores = {0, 0}; // {white, black}
+    std::pair<int, int> players = {0, 0}; // 0: player.   1-4: computer[1-4]
 
-    std::string currVal;
+    bool isGameRunning = false;
+
+    int totalGames = 0;
+
+    GameState state = Neutral;
+
+    std::string currLine;
 
     Board board = Board::createBoardFromFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
     
     std::cout << " ● Type a command: ";
 
-    while (std::cin >> currVal) {
-        if (currVal == "game") {
+    while (std::getline(std::cin, currLine)) {
+        std::string command;
+        std::istringstream lineStream{currLine};
+        lineStream >> command;
+
+        if (command == "game") {
+            std::string first;
+            lineStream >> first;
+            std::string second;
+            lineStream >> second;
+
+            if (!isGameRunning && lineStream && std::regex_match(first, std::regex("(player)|((computer)[1-4])")) && std::regex_match(second, std::regex("(player)|((computer)[1-4])"))) {
+                players.first = first == "player" ? 0 : first[8] - '0';
+                players.second = second == "player" ? 0 : second[8] - '0';
+                std::cout << std::endl;
+                std::cout << "╭──────────────────────────────────────" << (totalGames + 1 > 9 ? "─" : "") << "╮" << std::endl;
+                std::cout << "│ HAGNUS MIEMANN CHESS ENGINE - Game " << totalGames + 1 << " │" << std::endl;
+                std::cout << "├───────────────────┬──────────────────" << (totalGames + 1 > 9 ? "─" : "") << "┤" << std::endl;
+                std::cout << "│ White: " << first << (players.first ? "" : "   ") << "  │ Black: " << second << (players.second ? "" : "   ") << (totalGames + 1 > 9 ? " " : "") << " │" << std::endl;
+                std::cout << "╰───────────────────┴──────────────────" << (totalGames + 1 > 9 ? "─" : "") << "╯" << std::endl;
+                totalGames++;
+                isGameRunning = true;
+                io.display(board, state);
+            } else if (!isGameRunning) {
+                std::cout << " ◌ Usage:      game [white] [black]" << std::endl;
+            } else {
+                std::cout << " ◌ A game is already in progress." << std::endl;
+            }
+        } else if (command == "resign") {
+            if (!isGameRunning) {
+                std::cout << " ◌ No game is currently in progress." << std::endl;
+            } else {
+                Color turn = board.getTurn();
+                io.display(board, static_cast<GameState>(turn + 1));
+                if (turn) scores.first++;
+                else scores.second++;
+                isGameRunning = false;
+                board = Board::createBoardFromFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
+            }
+        } else if (command == "move") {
+
+            // TODO with Alex
+
+            std::string first = "";
+            lineStream >> first;
+            std::string second = "";
+            lineStream >> second;
+            std::string prom = "";
+            lineStream >> prom;
+
+            if (isGameRunning && true) {
+                // do move
+            } else if (isGameRunning) {
+                std::cout << " ◌ Usage:      move [from] [to] [promotion]" << std::endl;
+            } else {
+                std::cout << " ◌ No game is currently in progress." << std::endl;
+            }
+
+        } else if (command == "setup") {
             // TODO with alex
-        } else if (currVal == "resign") {
-            // TODO with alex
-        } else if (currVal == "move") {
-            // TODO with alex
-        } else if (currVal == "setup") {
-            // TODO with alex
-        } else if (currVal == "help" || currVal == "man") {
-            std::cout << " ◌ ╭─────────────────────────────────────╮" << std::endl;
-            std::cout << " ◌ │ HAGNUS MIEMAN CHESS ENGINE - Manual │" << std::endl;
-            std::cout << " ◌ ╰─────────────────────────────────────╯" << std::endl;
+        } else if (command == "help" || command == "man") {
+            std::cout << " ◌ ╭──────────────────────────────────────╮" << std::endl;
+            std::cout << " ◌ │ HAGNUS MIEMANN CHESS ENGINE - Manual │" << std::endl;
+            std::cout << " ◌ ╰──────────────────────────────────────╯" << std::endl;
             std::cout << " ◌ ╭──╴" << std::endl;
             std::cout << " ◌ │ game [white] [black]" << std::endl;
             std::cout << " ◌ │         Options are `player` and `computer[1-4]`." << std::endl;
@@ -59,7 +117,7 @@ int main() {
             std::cout << " ◌ │ move" << std::endl;
             std::cout << " ◌ │         Tells the computer to play its move." << std::endl;
             std::cout << " ◌ │ move [from] [to] [promotion]" << std::endl;
-            std::cout << " ◌ │         Play a move, for example: `move g2 g1 R`." << std::endl;
+            std::cout << " ◌ │         Play a move. For example: `move g2 g1 R`." << std::endl;
             std::cout << " ◌ │ perft [0-50]" << std::endl;
             std::cout << " ◌ │         Run a PERFT test on the current board." << std::endl;
             std::cout << " ◌ │ resign" << std::endl;
@@ -85,44 +143,39 @@ int main() {
             std::cout << " ◌ │ undo" << std::endl;
             std::cout << " ◌ │         Undoes the previous move in the current game." << std::endl;
             std::cout << " ◌ ╰──╴" << std::endl;
-        } else if (currVal == "undo") {
+        } else if (command == "undo") {
             // TODO with alex
-        } else if (currVal == "score") {
+        } else if (command == "score") {
             std::cout << " ◌ Current Scores:" << std::endl;
             std::cout << " ◌ White: " << scores.first << std::endl;
             std::cout << " ◌ Black: " << scores.second << std::endl;
-        } else if (currVal == "settings" || currVal == "setting") {
-            std::cout << " ◌ Type `toggle [0-3]` to toggle these settings:" << std::endl;
-            std::cout << " ◌ 0 - ASCII pieces        " << (io.getSetting(0) ? "ON" : "OFF") << std::endl;
+        } else if (command == "settings" || command == "setting") {
+            std::cout << " ◌ Type `toggle [0-4]` to toggle these settings:" << std::endl;
+            std::cout << " ◌ 0 - ASCII pieces        " << (!io.getSetting(0) ? "ON" : "OFF") << std::endl;
             std::cout << " ◌ 1 - Checkerboard        " << (io.getSetting(1) ? "ON" : "OFF") << std::endl;
             std::cout << " ◌ 2 - Flip perspective    " << (io.getSetting(2) ? "ON" : "OFF") << std::endl;
             std::cout << " ◌ 3 - Wide display        " << (io.getSetting(3) ? "ON" : "OFF") << std::endl;
-        } else if (currVal == "toggle") {
+            std::cout << " ◌ 4 - Computer auto-move  " << (io.getSetting(4) ? "ON" : "OFF") << std::endl;
+        } else if (command == "toggle") {
             int n = -1;
-            std::cin >> n;
-            if (std::cin && n >= 0 && n <= 3) {
+            lineStream >> n;
+            if (lineStream && n >= 0 && n <= 4) {
                 io.toggleSetting(n);
             } else {
-                std::cout << " ◌ Usage:      toggle [0-3]" << std::endl;
+                std::cout << " ◌ Usage:      toggle [0-4]" << std::endl;
                 std::cout << " ◌ Type `settings` for the setting list." << std::endl;
-                std::cin.clear();
-                std::cin.ignore();
             }
-        } else if (currVal == "perft") {
+        } else if (command == "perft") {
             int n = -1;
-            std::cin >> n;
-            if (std::cin && n >= 0 && n <= 50) {
+            lineStream >> n;
+            if (lineStream && n >= 0 && n <= 50) {
                 board.perftTest(n);
             } else {
                 std::cout << " ◌ Usage:      perft [0-50]" << std::endl;
-                std::cin.clear();
-                std::cin.ignore();
             }
         } else { // Invalid command
-            std::cout << " ◌ " << currVal << " is not a command. Type `man` for the manual." << std::endl;
-            std::cin.clear();
-            std::cin.ignore();
+            std::cout << " ◌ " << command << " is not a command. Type `man` for the manual." << std::endl;
         }
-        std::cout << " ● Type a command: ";
+        std::cout << " ● Command: ";
     }
 }
