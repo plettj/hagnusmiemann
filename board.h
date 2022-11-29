@@ -6,14 +6,10 @@
 #include <array>
 #include <vector>
 #include <map>
-
-class Move;
+#include "constants.h"
+#include "move.h"
 
 typedef uint64_t Bitboard;
-
-//For some attack things, we need to consider some fixed size multidimensional arrays.
-//C-style versions of those suck, so let's do something better:
-template <class T, size_t I, size_t J> using MultiArray = std::array<std::array<T, J>, I>;
 
 /**
  * The main board class that represents a current board position which is allowed to be ___PSEUDO-LEGAL___
@@ -24,91 +20,6 @@ template <class T, size_t I, size_t J> using MultiArray = std::array<std::array<
  */ 
 class Board {
 public:
-   /**
-    * Some helpful constants used throughout various board logic
-    * This serves to avoid magic numbers and also make things a little more modular
-    * if we want to adapt code to work with other chess variants
-    */ 
-    enum Constants {
-        NumSquares = 64, NumColors = 2,
-	    NumRanks = 8, NumFiles = 8,
-	    NumPieces = 6 //in the future, probably add NumPhases (for middle/endgame) and NumContinuations (for search)?
-    };
-
-    /**
-     * The two colors of pieces
-     */
-    enum Color {
-	    White = 0, Black
-    };
-
-    static inline Color flipColor(Color color) {
-        return (color == White) ? Black : White;
-    }
-
-    /** 
-     * The types of pieces
-     */
-    enum Piece : uint8_t {
-        Pawn = 0, Knight, Bishop, Rook, Queen, King
-    };
-   /**
-    * The types of pieces with colour included (and "Empty", useful for things like empty squares).
-    * The integers they correspond to are aligned to be compatible with the internal board representation
-    * using an unsigned 64 bit integer
-    */ 
-    enum ColorPiece : uint8_t {
-	    WhitePawn = 0, BlackPawn = 1,
-	    WhiteKnight = 4, BlackKnight = 5,
-	    WhiteBishop = 8, BlackBishop = 9,
-	    WhiteRook = 12, BlackRook = 13,
-	    WhiteQueen = 16, BlackQueen = 17,
-	    WhiteKing = 20, BlackKing = 21,
-	    Empty = 26
-    };
-
-   //Some useful helper methods to convert between our internal representations using integers quickly
-   /**
-    * Gets the overall piece type from the ColorPiece
-    */ 
-    static inline Piece getPieceType(ColorPiece piece) {
-	    assert(piece != Empty);
-	    //take advantage of alignment to just truncate and get correct result    
-	    return static_cast<Piece>(piece / 4);
-    }
-
-    /**
-     * Gets the color of the piece from the ColorPiece
-     */
-    static inline Color getColorOfPiece(ColorPiece piece) {
-	    assert(piece != Empty);
-	    return static_cast<Color>(piece % 4);
-    }
-
-    static inline ColorPiece makePiece(Piece type, Color color) {
-	    return static_cast<ColorPiece>(type * 4 + color);
-    }
-
-   /**
-    * To be compatible with internal board representation (LERF as discussed below),
-    * this is the enumeration of all squares in a nice alignment
-    */ 
-    enum Square : int32_t {
-	    None = -1,
-	    a1 = 0, b1, c1, d1, e1, f1, g1, h1,
-	    a2 = 8, b2, c2, d2, e2, f2, g2, h2,
-	    a3 = 16, b3, c3, d3, e3, f3, g3, h3,
-	    a4 = 24, b4, c4, d4, e4, f4, g4, h4,
-	    a5 = 32, b5, c5, d5, e5, f5, g5, h5,
-	    a6 = 40, b6, c6, d6, e6, f6, g6, h6,
-	    a7 = 48, b7, c7, d7, e7, f7, g7, h7,
-	    a8 = 56, b8, c8, d8, e8, f8, g8, h8
-    };
-
-    static inline Square getSquare(int square) {
-	    assert(-1 <= square && square <= 63);
-	    return static_cast<Square>(square);
-    }
     /**
     * For the purposes of the bitboard hash functions for Rooks/
     */
@@ -177,21 +88,18 @@ public:
     }
 
     /**
-     * In what follows, we generally distinguish between rank/files indices (which are 0-7 ints, this enum just exists for type checking)
-     * and the LERF representations (which we can't do quick integer math with to convert between).
-     * This is the one drawback involved in our close coupling between bitboard representation and board things
-     * but well worth it! 
-     */
-    enum Index {
-	    Zero = 0, One, Two, Three, Four, Five, Six, Seven
-    };
-
-    /**
      * Convert between squares and rank/files
      */ 
     static Index getFileIndexOfSquare(Square square);
     static Index getRankIndexOfSquare(Square square);
-    inline static Square getSquare(int rankIndex, int fileIndex) {
+    
+    /**
+     * Avoid namespacing problems with constants.h
+     */
+    static inline Square getSquare(int square) {
+        return getSquareFromIndex(square);
+    }
+    static inline Square getSquare(int rankIndex, int fileIndex) {
         assert(0 <= rankIndex && rankIndex < NumRanks && 0 <= fileIndex && fileIndex < NumFiles);
         return getSquare(static_cast<Index>(rankIndex), static_cast<Index>(fileIndex));
     }
@@ -228,6 +136,20 @@ public:
      * Returns number of moves added to the vector. 
      */
     int generateAllLegalMoves(std::vector<Move>& moveList);
+    /**
+     *  Returns number of moves add to vector THAT ARE PSEUDO-LEGAL.
+     */
+    int generateAllPseudoLegalMoves(std::vector<Move>& moveList);
+    /**
+     * A "noisy" move is a capture, promotion, pawn push.
+     * Returns number of moves added to vector THAT ARE PSEUDO-LEGAL.
+     */
+    int generateAllNoisyMoves(std::vector<Move>& moveList);
+    /**
+     * A quiet move is what's left from the list above.
+     * Returns number of moves added to vector THAT ARE PSEUDO-LEGAL.
+     */
+    int generateAllQuietMoves(std::vector<Move>& moveList);
 
     void setSquare(Color color, Piece piece, Square square);
     static Square squareFromString(const std::string& string);
@@ -236,16 +158,19 @@ public:
      * Returns whether or not the move was legal (if it was not, it rejects the move)
      */ 
     bool applyMove(Move& move);
-    int countLegalMoves(); // TODO
+    int countLegalMoves();
     //TODO: plenty of things that help us later can go here
     //like determining if a move is tactical or not
+
     bool isMoveLegal(Move& move);
     bool isMovePseudoLegal(Move& move);
     /**
      * Checks legality of last move assuming it was pseudo-legal
      */
     bool didLastMoveLeaveInCheck();
- 
+    
+    Move getLastPlayedMove();
+
     bool isSquareAttacked(Square square, Color side); // the side of the piece on the square, not the attacking team.
     /**
      * Runs a PERFormance Tree test, which brute force generates all possible legal moves in the next *depth* nodes
@@ -293,9 +218,9 @@ private:
          * These are arrays of bitboards corresponding to where we can attack with a piece on a given square.
          * Kings, Pawns, and Knights are very simple to determine where they can attack (it's a hard and fast rule, they are never blocked by anything). 
          */
-        alignas(64) Bitboard PawnAttack[Board::NumColors][Board::NumSquares]; //these are sided based on direction, since pawns are the only piece that aren't symmetric
-        alignas(64) Bitboard KnightAttack[Board::NumSquares];
-        alignas(64) Bitboard KingAttack[Board::NumSquares];
+        alignas(64) Bitboard PawnAttack[NumColors][NumSquares]; //these are sided based on direction, since pawns are the only piece that aren't symmetric
+        alignas(64) Bitboard KnightAttack[NumSquares];
+        alignas(64) Bitboard KingAttack[NumSquares];
         
         /**
          * Bishops and rooks (and queens), on the other hand, are blocked by annoying things called enemy pieces.
@@ -313,7 +238,7 @@ private:
          * Citation: For these specific precomputed boards, I (Alex) was given them by Terje Kir, the author of the chess program Weiss in 2020 when I was working on badchessengine,
          * an engine I wrote in 2019/2020.
          */ 
-        const Bitboard RookHashes[Board::NumSquares] = {
+        const Bitboard RookHashes[NumSquares] = {
             0xA180022080400230ull, 0x0040100040022000ull, 0x0080088020001002ull, 0x0080080280841000ull, 0x4200042010460008ull, 0x04800A0003040080ull, 0x0400110082041008ull, 0x008000A041000880ull,
             0x10138001A080C010ull, 0x0000804008200480ull, 0x00010011012000C0ull, 0x0022004128102200ull, 0x000200081201200Cull, 0x202A001048460004ull, 0x0081000100420004ull, 0x4000800380004500ull,
             0x0000208002904001ull, 0x0090004040026008ull, 0x0208808010002001ull, 0x2002020020704940ull, 0x8048010008110005ull, 0x6820808004002200ull, 0x0A80040008023011ull, 0x00B1460000811044ull,
@@ -323,7 +248,7 @@ private:
             0x48FFFE99FECFAA00ull, 0x48FFFE99FECFAA00ull, 0x497FFFADFF9C2E00ull, 0x613FFFDDFFCE9200ull, 0xFFFFFFE9FFE7CE00ull, 0xFFFFFFF5FFF3E600ull, 0x0010301802830400ull, 0x510FFFF5F63C96A0ull,
             0xEBFFFFB9FF9FC526ull, 0x61FFFEDDFEEDAEAEull, 0x53BFFFEDFFDEB1A2ull, 0x127FFFB9FFDFB5F6ull, 0x411FFFDDFFDBF4D6ull, 0x0801000804000603ull, 0x0003FFEF27EEBE74ull, 0x7645FFFECBFEA79Eull
         };
-        const Bitboard BishopHashes[Board::NumSquares] = {
+        const Bitboard BishopHashes[NumSquares] = {
             0xFFEDF9FD7CFCFFFFull, 0xFC0962854A77F576ull, 0x5822022042000000ull, 0x2CA804A100200020ull, 0x0204042200000900ull, 0x2002121024000002ull, 0xFC0A66C64A7EF576ull, 0x7FFDFDFCBD79FFFFull,
             0xFC0846A64A34FFF6ull, 0xFC087A874A3CF7F6ull, 0x1001080204002100ull, 0x1810080489021800ull, 0x0062040420010A00ull, 0x5028043004300020ull, 0xFC0864AE59B4FF76ull, 0x3C0860AF4B35FF76ull,
             0x73C01AF56CF4CFFBull, 0x41A01CFAD64AAFFCull, 0x040C0422080A0598ull, 0x4228020082004050ull, 0x0200800400E00100ull, 0x020B001230021040ull, 0x7C0C028F5B34FF76ull, 0xFC0A028E5AB4DF76ull,
@@ -349,9 +274,7 @@ private:
     Board(); //private constructor to force client to use factory method
 
     std::array<ColorPiece, NumSquares> squares;
-    //TODO: whoever is implementing zobrist, implement these
     uint64_t positionHash;
-    uint64_t pawnKingHash;
     //Bitboards for each of the pieces +  TODO: others (pieces are implemented)
     std::array<Bitboard, 8> pieces;
     //Bitboards for each side's pieces (and empty)
@@ -389,29 +312,19 @@ private:
      */
     void addNonPawnNormalMoves(std::vector<Move>& moveList, Piece type, Bitboard targets, Bitboard sources, Bitboard occupiedBoard);
 
-    /**
-     * A "noisy" move is a capture, promotion, pawn push.
-     * Returns number of moves added to vector.
-     */
-    int generateAllNoisyMoves(std::vector<Move>& moveList);
-    /**
-     * A quiet move is what's left from the list above.
-     * Returns number of moves added to vector.
-     */
-    int generateAllQuietMoves(std::vector<Move>& moveList);
-    bool debugIsSquareAttacked(Square square, Board::Color side);
+    bool debugIsSquareAttacked(Square square, Color side);
     /**
      * Some annoying to recompute data for undoing a move
      */ 
     struct UndoData {
         uint64_t positionHash;
-	    uint64_t pawnKingHash;
 	    Bitboard kingAttackers;
 	    Bitboard castlingRooks;
 	    Square enpassantSquare;
 	    int plies;
 	    //TODO: psqt?
 	    ColorPiece pieceCaptured;
+        Move move;
     };
     std::vector<UndoData> undoStack;
 
@@ -426,10 +339,10 @@ private:
     void applyPromotionMoveWithUndo(Move& move, UndoData& undo);
     //TODO: null move would go here
     /**
-     * This takes the most recent move from the undo stack
+     * This takes the most recent element of the undo stack
      */ 
-    void revertMostRecent(Move& move);
-    void revertMove(Move& move, UndoData& undo);
+    void revertMostRecent();
+    void revertMove(UndoData& undo);
 
     bool isSquareInBoardAttacked(Bitboard board, Color turn);
     //With these, we can do what is necessary to determine all the attacks

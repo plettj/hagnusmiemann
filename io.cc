@@ -1,4 +1,5 @@
 #include "io.h"
+#include "constants.h"
 
 IO::IO(std::istream& in) {
     input = new TextInput{in};
@@ -48,8 +49,8 @@ TextOutput::TextOutput(Input* toFollow, std::ostream& out): Output{toFollow}, ou
     toFollow->attach(this);
 }
 void TextOutput::display(Board& board, std::array<bool, 4> settings) {
-    Board::Square kingSquare = board.getKing();
-    Board::Color turn = board.getTurn();
+    Square kingSquare = board.getKing();
+    Color turn = board.getTurn();
 
     bool gameOver = false; // TODO!
 
@@ -60,16 +61,16 @@ void TextOutput::display(Board& board, std::array<bool, 4> settings) {
     bool blackPerspective = (settings[2] && static_cast<bool>(turn));
 
     out << "   " << "╔═════════════════" << ((settings[3]) ? "═══════" : "") << (settings[0] && !settings[1] ? "" : "═") << "╗" << std::endl;
-    for (int rank = 0; rank < Board::NumRanks; ++rank) {
+    for (int rank = 0; rank < NumRanks; ++rank) {
         int realRank = (blackPerspective) ? rank : 7 - rank;
 
         out << " " << realRank + 1 << " ║" << ((settings[3]) ? "" : " ");
 
-        for (int file = 0; file < Board::NumFiles; ++file) {
+        for (int file = 0; file < NumFiles; ++file) {
             int realFile = (blackPerspective) ? 7 - file : file;
 
-            Board::Square square = Board::getSquare(realRank, realFile);
-            Board::ColorPiece piece = board.getPieceAt(square);
+            Square square = Board::getSquare(realRank, realFile);
+            ColorPiece piece = board.getPieceAt(square);
             int pieceInt = piece / 4 * 2 + piece % 2;
             if (pieceInt >= 12) { // blank square
                 if (settings[1]) {
@@ -110,7 +111,7 @@ void TextOutput::display(Board& board, std::array<bool, 4> settings) {
     }
     out << std::endl << "   " << (settings[3] ? "" : " ");
 
-    for (int file = 0; file < Board::NumFiles; ++file) {
+    for (int file = 0; file < NumFiles; ++file) {
         int realFile = (blackPerspective) ? 7 - file : file;
         out << " " << ((settings[3]) ? " " : "") << static_cast<char>(realFile + 97);
     }
