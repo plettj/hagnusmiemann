@@ -499,7 +499,8 @@ unsigned long long Board::perft(std::map<std::string, int>& divideTree, int dept
     unsigned long long numMoves = 0;
     
     undoStack.emplace_back();
-    std::vector<Move> moveList{MaxNumMoves};
+    std::vector<Move> moveList;
+    moveList.reserve(MaxNumMoves);
 
     generateAllNoisyMoves(moveList);
     generateAllQuietMoves(moveList);
@@ -763,7 +764,8 @@ void Board::applyPromotionMoveWithUndo(Move& move, Board::UndoData& undo) {
 }
 
 int Board::countLegalMoves() {
-    std::vector<Move> moveList{MaxNumMoves};
+    std::vector<Move> moveList;
+    moveList.reserve(MaxNumMoves);
     return generateAllLegalMoves(moveList);
 }
 
@@ -1140,7 +1142,8 @@ int Board::generateAllPseudoLegalMoves(std::vector<Move>& moveList) {
 
 int Board::generateAllLegalMoves(std::vector<Move>& moveList) {
     const int startSize = moveList.size();
-    std::vector<Move> pseudoLegalMoves{MaxNumMoves};
+    std::vector<Move> pseudoLegalMoves;
+    pseudoLegalMoves.reserve(MaxNumMoves);
 
     generateAllPseudoLegalMoves(pseudoLegalMoves);
 
