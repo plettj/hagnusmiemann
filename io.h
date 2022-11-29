@@ -15,12 +15,18 @@ class Output;
 class IO {
     Input* input;
     std::vector<Output*> outputs;
+
+    bool basicPieces = false; // Whether pieces are drawn with text [eg. K] or ascii pieces [eg. ♔]
+    bool showCheckers = false; // Whether to differentiate the dark and light squares
+    bool boardPerspective = true; // Whether to print the board from black's perspective when appropriate
+    bool wideBoard = false; // Whether to print the board with wide style
 public:
     IO(std::istream& in);
     void makeTextOutput(std::ostream& out);
     void makeGraphicOutput();
     void display(Board& board);
     void toggleSetting(int setting);
+    bool getSetting(int setting);
 };
 
 // Observer
@@ -29,27 +35,18 @@ protected:
     Input* toFollow;
 public:
     Output(Input* toFollow): toFollow{toFollow} {};
-    virtual void display(Board& board) = 0; // notify()
-    virtual void toggleSetting(int setting) = 0;
+    virtual void display(Board& board, std::array<bool, 4> settings) = 0; // notify()
 };
 
 // Concrete Observer #1
 class TextOutput: public Output {
     std::ostream& out;
-
-    bool basicPieces = false; // Whether pieces are drawn with text [eg. K] or ascii pieces [eg. ♔]
-    bool showCheckers = false; // Whether to differentiate the dark and light squares
-    bool boardPerspective = true; // Whether to print the board from black's perspective when appropriate
-    bool wideBoard = false; // Whether to print the board with wide style
-
     // Translate our piece integers into display characters:
     const std::array<char, 12> PieceChar{'p', 'P', 'n', 'N', 'b', 'B', 'r', 'R', 'q', 'Q', 'k', 'K'};
     const std::array<std::string, 12> PieceImage{"♟", "♙", "♞", "♘", "♝", "♗", "♜", "♖", "♛", "♕", "♚", "♔"};
 public:
     TextOutput(Input* toFollow, std::ostream& out);
-    void display(Board& board) override;
-
-    void toggleSetting(int setting) override;
+    void display(Board& board, std::array<bool, 4> settings) override;
 };
 
 // Concrete Observer #2
@@ -57,9 +54,7 @@ class GraphicalOutput: public Output {
 
 public:
     GraphicalOutput(Input* toFollow);
-    void display(Board& board) override;
-
-    void toggleSetting(int setting) override;
+    void display(Board& board, std::array<bool, 4> settings) override;
 };
 
 // Subject
@@ -69,7 +64,7 @@ protected:
 public:
     virtual void attach(Output* output) = 0;
     virtual void detach(Output* output) = 0;
-    virtual void notifyOutputs(Board& board) = 0;
+    virtual void notifyOutputs(Board& board, std::array<bool, 4> settings) = 0;
 };
 
 // Concrete Subject #1
@@ -79,7 +74,7 @@ public:
     TextInput(std::istream& in): in{in} {};
     void attach(Output* output) override;
     void detach(Output* output) override;
-    void notifyOutputs(Board& board) override;
+    void notifyOutputs(Board& board, std::array<bool, 4> settings) override;
 };
 
 #endif
