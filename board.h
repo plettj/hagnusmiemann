@@ -275,10 +275,10 @@ private:
 
     std::array<ColorPiece, NumSquares> squares;
     uint64_t positionHash;
-    //Bitboards for each of the pieces +  TODO: others (pieces are implemented)
-    std::array<Bitboard, 8> pieces;
-    //Bitboards for each side's pieces (and empty)
-    std::array<Bitboard, 3> sides;
+    //Bitboards for each of the pieces
+    std::array<Bitboard, 6> pieces;
+    //Bitboards for each side's pieces
+    std::array<Bitboard, 2> sides;
     //Bitboard for where the king is attacked (TODO: useful later, not implemented now)
     Bitboard kingAttackers;
     //Bitboards corresponding to rooks that can castle (non promoted ones)
