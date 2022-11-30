@@ -663,14 +663,29 @@ void Board::applyMoveWithUndo(Move& move, UndoData& undo) {
     //then enpassant expires and we must remove it
     if(enpassantSquare == undo.enpassantSquare) {
         if (enpassantSquare != None) {
-            zobristChangeEnPassant(positionHash, getFileIndexOfSquare(enpassantSquare));
+            ZobristNums::changeEnPassant(positionHash, getFileIndexOfSquare(enpassantSquare));
         } 
         enpassantSquare = None;
     }
 
+    // if castling permissions are different, reflect this in zobrist
+    Bitboard rookChanges = castlingRooks & (~undo.castlingRooks);
+    if ((rookChanges & sides[White] & FileA) != 0) {
+        ZobristNums::changeCastleRights(undo.positionHash, White, true);
+    }
+    if ((rookChanges & sides[Black] & FileA) != 0) {
+        ZobristNums::changeCastleRights(undo.positionHash, White, false);
+    }
+    if ((rookChanges & sides[White] & FileH) != 0) {
+        ZobristNums::changeCastleRights(undo.positionHash, Black, true);
+    }
+    if ((rookChanges & sides[Black] & FileH) != 0) {
+        ZobristNums::changeCastleRights(undo.positionHash, Black, false);
+    }
+
     //flip whose turn it is
     turn = flipColor(turn);
-    zobristFlipColor(positionHash);
+    ZobristNums::flipColor(undo.positionHash);
     kingAttackers = getAllKingAttackers();
 }
 
@@ -687,14 +702,14 @@ void Board::applyNormalMoveWithUndo(Move& move, UndoData& undo) {
     pieces[getPieceType(from)] ^= (1ull << move.getFrom()) ^ (1ull << move.getTo());
     sides[turn] ^= (1ull << move.getFrom()) ^ (1ull << move.getTo());
     //zobrist hash update
-    zobristChangePiece(undo.positionHash, getColorOfPiece(from), getPieceType(from), move.getFrom());
-    zobristChangePiece(undo.positionHash, getColorOfPiece(from), getPieceType(from), move.getTo());
+    ZobristNums::changePiece(undo.positionHash, getColorOfPiece(from), getPieceType(from), move.getFrom());
+    ZobristNums::changePiece(undo.positionHash, getColorOfPiece(from), getPieceType(from), move.getTo());
 
     //if we captured
     if(to != Empty) {
         pieces[getPieceType(to)] ^= (1ull << move.getTo());
         sides[flipColor(turn)] ^= (1ull << move.getTo());
-        zobristChangePiece(undo.positionHash, getColorOfPiece(to), getPieceType(to), move.getTo());
+        ZobristNums::changePiece(undo.positionHash, getColorOfPiece(to), getPieceType(to), move.getTo());
     }
 
     squares[move.getFrom()] = Empty;
@@ -710,7 +725,7 @@ void Board::applyNormalMoveWithUndo(Move& move, UndoData& undo) {
     if(getPieceType(from) == Pawn && (move.getTo() ^ move.getFrom()) == 16
     && 0 != (pieces[Pawn] & sides[flipColor(turn)] & PrecomputedBinary::getBinary().getAdjacentFilesMask(getFileIndexOfSquare(move.getFrom())) & ((turn == White) ? Rank4 : Rank5))) {
         enpassantSquare = getSquare((turn == White) ? move.getFrom() + 8 : move.getFrom() - 8);
-        zobristChangeEnPassant(positionHash, getFileIndexOfSquare(enpassantSquare));
+        ZobristNums::changeEnPassant(positionHash, getFileIndexOfSquare(enpassantSquare));
     }
 }
 
@@ -731,10 +746,10 @@ void Board::applyCastlingMoveWithUndo(Move& move, Board::UndoData& undo) {
     Square rookTo = getRookCastlingSquare(kingFrom, rookFrom);
 
     //zobrist hash update
-    zobristChangePiece(undo.positionHash, getColorOfPiece(squares[move.getFrom()]), King, kingTo);
-    zobristChangePiece(undo.positionHash, getColorOfPiece(squares[move.getFrom()]), King, kingFrom);
-    zobristChangePiece(undo.positionHash, getColorOfPiece(squares[move.getFrom()]), Rook, rookTo);
-    zobristChangePiece(undo.positionHash, getColorOfPiece(squares[move.getFrom()]), Rook, rookFrom);
+    ZobristNums::changePiece(undo.positionHash, getColorOfPiece(squares[move.getFrom()]), King, kingTo);
+    ZobristNums::changePiece(undo.positionHash, getColorOfPiece(squares[move.getFrom()]), King, kingFrom);
+    ZobristNums::changePiece(undo.positionHash, getColorOfPiece(squares[move.getFrom()]), Rook, rookTo);
+    ZobristNums::changePiece(undo.positionHash, getColorOfPiece(squares[move.getFrom()]), Rook, rookFrom);
     
     pieces[King] ^= (1ull << kingFrom) ^ (1ull << kingTo);
     sides[turn] ^= (1ull << kingFrom) ^ (1ull << kingTo);
@@ -759,9 +774,9 @@ void Board::applyEnpassantMoveWithUndo(Move& move, Board::UndoData& undo) {
     Square capturedSquare = getSquare(move.getTo() - 8 + (turn << 4));
 
     //zobrist hash update
-    zobristChangePiece(undo.positionHash, getColorOfPiece(squares[move.getFrom()]), Pawn, move.getTo());
-    zobristChangePiece(undo.positionHash, getColorOfPiece(squares[move.getFrom()]), Pawn, move.getFrom());
-    zobristChangePiece(undo.positionHash, flipColor(getColorOfPiece(squares[move.getFrom()])), Pawn, capturedSquare);
+    ZobristNums::changePiece(undo.positionHash, getColorOfPiece(squares[move.getFrom()]), Pawn, move.getTo());
+    ZobristNums::changePiece(undo.positionHash, getColorOfPiece(squares[move.getFrom()]), Pawn, move.getFrom());
+    ZobristNums::changePiece(undo.positionHash, flipColor(getColorOfPiece(squares[move.getFrom()])), Pawn, capturedSquare);
     
     //en passant is a capture, so reset the fifty move rule
     plies = 0;
@@ -782,8 +797,8 @@ void Board::applyPromotionMoveWithUndo(Move& move, Board::UndoData& undo) {
     ColorPiece capturedPiece = squares[move.getTo()];
 
     //zobrist hash update
-    zobristChangePiece(undo.positionHash, getColorOfPiece(promotedPiece), Pawn, move.getFrom());
-    zobristChangePiece(undo.positionHash, getColorOfPiece(promotedPiece), move.getPromoType(), move.getTo());
+    ZobristNums::changePiece(undo.positionHash, getColorOfPiece(promotedPiece), Pawn, move.getFrom());
+    ZobristNums::changePiece(undo.positionHash, getColorOfPiece(promotedPiece), move.getPromoType(), move.getTo());
 
     //promotion resets the fifty move rule
     plies = 0;
@@ -794,7 +809,7 @@ void Board::applyPromotionMoveWithUndo(Move& move, Board::UndoData& undo) {
     if(capturedPiece != Empty) {
         pieces[getPieceType(capturedPiece)] ^= (1ull << move.getTo());
         sides[getColorOfPiece(capturedPiece)] ^= (1ull << move.getTo());
-        zobristChangePiece(undo.positionHash, getColorOfPiece(capturedPiece), getPieceType(capturedPiece), move.getTo());
+        ZobristNums::changePiece(undo.positionHash, getColorOfPiece(capturedPiece), getPieceType(capturedPiece), move.getTo());
     }
 
     squares[move.getFrom()] = Empty;

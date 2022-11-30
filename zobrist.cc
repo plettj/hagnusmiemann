@@ -30,11 +30,6 @@ ZobristNums::ZobristNums() {
 }
 
 
-uint64_t ZobristNums::getSquare(Color pieceColor, Piece pieceType, Square pieceLocation) {
-    return zobristNums[pieceColor][pieceType][pieceLocation];
-}
-
-
 // create singleton that our zobrist methods requires access to
 ZobristNums& zn = ZobristNums::getZobrist();
 
@@ -44,30 +39,30 @@ uint64_t zobristNewPosition() {
 }
 
 
-void zobristChangePiece(uint64_t& hash, Color pieceColor, Piece pieceType, Square pieceLocation) {
-   hash ^= zn.getSquare(pieceColor, pieceType, pieceLocation);
+void ZobristNums::changePiece(uint64_t& hash, Color pieceColor, Piece pieceType, Square pieceLocation) {
+   hash ^= zn.zobristNums[pieceColor][pieceType][pieceLocation];
 }
 
 
-void zobristFlipColor(uint64_t& hash) {
-    hash ^= zn.getSquare(White, Pawn, a1);
+void ZobristNums::flipColor(uint64_t& hash) {
+    hash ^= zn.zobristNums[White][Pawn][a1];
 }
 
 
-void zobristChangeCastleRights(uint64_t& hash, Color side, bool isKingside) {
+void ZobristNums::changeCastleRights(uint64_t& hash, Color side, bool isKingside) {
     if (side == White && isKingside) {
-        hash ^= zn.getSquare(White, Pawn, b1);
+        hash ^= zn.zobristNums[White][Pawn][b1];
     }
     if (side == White && !isKingside) {
-        hash ^= zn.getSquare(White, Pawn, c1);
+        hash ^= zn.zobristNums[White][Pawn][c1];
     }
     if (side != White && isKingside) {
-        hash ^= zn.getSquare(White, Pawn, d1);
+        hash ^= zn.zobristNums[White][Pawn][d1];
     }
-    hash ^= zn.getSquare(White, Pawn, e1);
+    hash ^= zn.zobristNums[White][Pawn][e1];
 }
 
 
-void zobristChangeEnPassant(uint64_t& hash, Index file) {
-    hash ^= zn.getSquare(Black, Pawn, a1);
+void ZobristNums::changeEnPassant(uint64_t& hash, Index file) {
+    hash ^= zn.zobristNums[Black][Pawn][a1];
 }
