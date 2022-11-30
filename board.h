@@ -125,6 +125,7 @@ public:
     ColorPiece getPieceAt(Square square) const;
     Square getKing() const;
     Color getTurn() const;
+    void setTurn(Color color);
 
     bool hasNonPawns(Color side) const;
     bool isDrawn(int threefoldHeight) const;
@@ -152,6 +153,15 @@ public:
     int generateAllQuietMoves(std::vector<Move>& moveList);
 
     void setSquare(Color color, Piece piece, Square square);
+    void clearSquare(Square square);
+    /**
+     * ASSUMES THE ROOK IN QUESTION EXISTS 
+     */
+    void setCastlingRight(Color side, bool kingside);
+    /**
+     * ASSUMES THERE IS A PAWN IN THE CORRECT POSITION TO BE ENPASSANTED 
+     */
+    void setEnpassantSquare(Square square);
     static Square squareFromString(const std::string& string);
     
     /**
@@ -171,6 +181,9 @@ public:
     
     Move getLastPlayedMove();
 
+    int getPlies() const;
+    Piece getLastMovedPiece() const;
+
     bool isSquareAttacked(Square square, Color side); // the side of the piece on the square, not the attacking team.
     /**
      * Runs a PERFormance Tree test, which brute force generates all possible legal moves in the next *depth* nodes
@@ -179,6 +192,8 @@ public:
      */
     void perftTest(int depth);
 private:
+    //For static exchange evaluation
+    friend class HeuristicMoveOrderer;
     /**
      * Your friendly neighbourhood singleton of computation stuff.
      * This doesn't really do anything special versus lots of static data in the .cc file, but is more extensible

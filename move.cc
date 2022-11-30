@@ -5,17 +5,21 @@ Move::Move() : from{Square::a1}, to{Square::a1}, moveType{Normal}, promotionType
 
 Move::Move(Square from, Square to, Move::MoveType moveType, Piece promoType) : from{from}, to{to}, moveType{moveType}, promotionType{promoType} { }
 
-Move& Move::operator=(const Move& other) {
-    from = other.from;
-    to = other.to;
-    moveType = other.moveType;
-    promotionType = other.promotionType;
+bool Move::operator==(const Move& other) const {
+    return from == other.from && to == other.to && moveType == other.moveType && promotionType == other.promotionType;
+}
 
-    return *this;
+bool Move::operator!=(const Move& other) const {
+    return !(*this == other);
 }
 
 Square Move::getFrom() const {
     return from;
+}
+
+Square Move::getEnpassantSquareCaptured(Color turn) const {
+    assert(moveType == Enpassant);
+    return getSquareFromIndex(to - 8 + (turn << 4));
 }
 
 bool Move::isMoveNone() const {

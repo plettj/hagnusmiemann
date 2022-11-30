@@ -97,6 +97,23 @@ int main() {
 
             if (isGameRunning && true) {
                 // do move
+                //To move, first form the move object (this is the hard part, details below).
+                //then, check if it is pseudo legal with board.isMovePseudoLegal(move).
+                //Then, call board.applyMove(move). This will return true if the move was fully legal,
+                //and false if it was illegal.
+
+                //To form move object:
+                //Move works like this: its constructor is Move{fromSquare, toSquare, MoveType, PromotedPiece};
+                //The promoted piece is optional, omit it if it is not a promotion.
+                //For movetype, it is one of Move::Normal, Move::Castle, Move::Promotion, Move::Enpassant.
+                //For castling, we encode it as the fromSquare is the king's square, the toSquare is the rook's square.
+                //Thus kingside white castling is of the form (e1, h1, Castle)
+                //For the enpassant square, the fromSquare is as normal, the toSquare is the enpassant square (i.e. where the capturing pawn goes).
+                //in case you want it, Move has a method to get what square it just captured.
+                
+                //For computer moves, those aren't implemented yet, but you will just ask the formed difficulty level for its
+                //move, it will give back a fully legal one, so you can just call applyMove with it without any legality checks or any hard parts about forming it.
+                
             } else if (isGameRunning) {
                 std::cout << " ◌ Usage:      move [from] [to] [promotion]" << std::endl;
             } else {
@@ -105,6 +122,9 @@ int main() {
 
         } else if (command == "setup") {
             // TODO with alex
+            //Basically just use board.setSquare(color, piece, square), board.clearSquare(square), board.setTurn(turn)
+            //board.setCastlingRight(side, isKingside), board.setEnpassantSquare(square). The latter two
+            //strongly assume that the correct preconditions are met (i.e. a rook actually exists in the correct place/a pawn actually is in an enpassant'able position)
         } else if (command == "help" || command == "man") {
             std::cout << " ◌ ╭──────────────────────────────────────╮" << std::endl;
             std::cout << " ◌ │ HAGNUS MIEMANN CHESS ENGINE - Manual │" << std::endl;

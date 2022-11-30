@@ -25,11 +25,15 @@ public:
      * NOTE: moves are immutable, so doing this cannot be changed
      */
     Move();
+    Move(const Move& other) = default;
     Move(Square from, Square to, MoveType moveType, Piece promotionPiece = Piece::Knight);
-    Move& operator=(const Move& move);
+    Move& operator=(const Move& move) = default;
+    bool operator==(const Move& move) const;
+    bool operator!=(const Move& move) const;
 
     Square getFrom() const;
     Square getTo() const;
+    Square getEnpassantSquareCaptured(Color turn) const;
     MoveType getMoveType() const;
     Piece getPromoType() const;
     bool isMoveNone() const;
@@ -43,5 +47,16 @@ private:
     MoveType moveType;
     Piece promotionType;
 };
+
+/**
+ * For use with unordered_map, just hash based on the from and to squares
+ */
+namespace std {
+    template <> struct hash<Move> {
+        std::size_t operator()(const Move& move) const {
+            return move.getFrom() | (move.getTo() << 6);
+        }
+    };
+}
 
 #endif

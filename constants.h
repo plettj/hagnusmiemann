@@ -14,6 +14,7 @@ template <class T, size_t I, size_t J, size_t K> using TripleArray = std::array<
  * if we want to adapt code to work with other chess variants
  */ 
 enum Constants {
+    MaxDepth = 256,
     MaxNumMoves = 236, //A (not too precise) upper bound on the number of pseudo-legal moves in a chess position. This allows us to allocate our vectors of a certain size right away, without having to do any reallocs.
     NumSquares = 64, NumColors = 2,
     NumRanks = 8, NumFiles = 8,

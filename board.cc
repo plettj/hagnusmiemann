@@ -345,7 +345,29 @@ bool Board::debugIsSquareAttacked(Square square, Color side) {
     return attackedByPawns || attackedByKnights || attackedByKings || attackedByBishops || attackedByRooks;
 }
 
+void Board::setCastlingRight(Color side, bool isKingside) {
+    if(side == White && isKingside) {
+        if(!testBit(castlingRooks, getSquare(getMsb(sides[White] & pieces[Rook] & Rank1)))) {
+	        setBit(castlingRooks, getSquare(getMsb(sides[White] & pieces[Rook] & Rank1))); 
+        }
+	} else if(side == White && !isKingside) {
+        if(!testBit(castlingRooks, getSquare(getLsb(sides[White] & pieces[Rook] & Rank1)))) {
+            setBit(castlingRooks, getSquare(getLsb(sides[White] & pieces[Rook] & Rank1)));
+        }
+    } else if(isKingside) {
+        if(!testBit(castlingRooks, getSquare(getMsb(sides[Black] & pieces[Rook] & Rank8)))) {
+	        setBit(castlingRooks, getSquare(getMsb(sides[Black] & pieces[Rook] & Rank8))); 
+        }    
+    } else {
+        if(!testBit(castlingRooks, getSquare(getLsb(sides[Black] & pieces[Rook] & Rank8)))) {
+            setBit(castlingRooks, getSquare(getLsb(sides[Black] & pieces[Rook] & Rank8)));
+        }    
+    }
+}
 
+void Board::setEnpassantSquare(Square square) {
+    enpassantSquare = square;
+}
 
 void Board::setSquare(Color side, Piece piece, Square square) {
     assert(square != None);
@@ -356,6 +378,21 @@ void Board::setSquare(Color side, Piece piece, Square square) {
 
     //TODO:
     //update PSQT (probably) and hashes
+}
+
+void Board::clearSquare(Square square) {
+    assert(square != None);
+    ColorPiece pieceOn = squares[square];
+    if(pieceOn == Empty) {
+        return;
+    }
+    squares[square] = Empty;
+    clearBit(sides[getColorOfPiece(pieceOn)], square);
+    clearBit(pieces[getPieceType(pieceOn)], square);
+    if(testBit(castlingRooks, square)) {
+        clearBit(castlingRooks, square);
+    }
+    //TODO: update PSQT (probably) and hashes
 }
 
 Board Board::createBoardFromFEN(std::string fen) {
@@ -462,14 +499,18 @@ std::string Board::getFEN() const {
 ColorPiece Board::getPieceAt(Square square) const {
     assert(square != None);
     return squares[square];
-};
+}
 
 Square Board::getKing() const {
     return getSquare(getLsb(pieces[King] & sides[turn]));
-};
+}
 Color Board::getTurn() const {
     return turn;
-};
+}
+
+void Board::setTurn(Color color) {
+    this->turn = turn;
+}
 
 void Board::perftTest(int depth) {
     perftRootDepth = depth;
@@ -1165,4 +1206,12 @@ Move Board::getLastPlayedMove() {
         return Move{};
     }
     return undoStack.back().move;
+}
+
+int Board::getPlies() const {
+    return plies;
+}
+
+Piece Board::getLastMovedPiece() const {
+    return getPieceType(squares[undoStack.back().move.getTo()]);
 }

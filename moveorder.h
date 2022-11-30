@@ -4,7 +4,8 @@
 #include "board.h"
 #include "move.h"
 #include "evaluator.h"
-#include <unordered_map>
+#include <map>
+#include <random>
 
 typedef int HeuristicScore;
 
@@ -21,7 +22,8 @@ public:
     virtual ~MoveOrderer() = default;
 protected:
     Board& board;
-    std::unordered_map<Move, HeuristicScore> currentMoveScores;    
+    std::vector<Move> moveList;
+    int size = 0;
 };
 
 /**
@@ -32,6 +34,8 @@ public:
     RandomMoveOrderer(Board& board);
     RandomMoveOrderer(const RandomMoveOrderer& other) = delete;
     Move pickNextMove(bool noisyOnly) override;
+private:
+    std::mt19937 rng;
 };
 
 /**
@@ -42,12 +46,34 @@ public:
     HeuristicMoveOrderer(Board& board);
     HeuristicMoveOrderer(const HeuristicMoveOrderer& other) = delete;
 
-    //TODO: Static Exchange Eval stuff here
-    void updateHeuristics(std::vector<Move>& moveList, int depth);
-    void seedMoveOrderer(bool noisyOnly);
+    /**
+     * Static exchange evaluation looks at the possible trades on a square
+     * and determines if one side can clearly materially win it without having to actually
+     * calculate further. For instance, if a pawn takes a queen, then that side will always win the trade
+     * because they can choose to stop and just be up a queen for a pawn. 
+     * Returns whether the side that plays the move wins the trade or not.
+     */
+    bool staticExchangeEvaluation(const Move& move, CentipawnScore margin);
+
+    void updateQuietHeuristics(std::vector<Move>& moveList, int depth);
+    void updateNoisyHeuristics(std::vector<Move>& moveList, Move& best, int depth);
+    void seedMoveOrderer(bool tacticalSearch, CentipawnScore seeMargin);
     Move pickNextMove(bool noisyOnly) final override;
 private:
-    bool noisyOnly = false;
+    std::map<Move, HeuristicScore> currentMoveScores;
+    enum Stage {
+        GenerateNoisy = 0, GoodNoisy, KillerOne, KillerTwo, Counter, GenerateQuiet, Quiet, BadNoisy
+    };
+    Stage currentStage;
+
+    Move popBestMove(int beginRange, int endRange);
+    Move popFirstMove();
+    HeuristicScore getNewHistoryValue(HeuristicScore oldValue, int depth, bool positiveBonus);
+
+    CentipawnScore currentSEEMargin;
+    int noisySize;
+    int quietSize;
+    bool tacticalSearch = false;
     //TODO: Transposition table
 
 
@@ -63,9 +89,9 @@ private:
      * Ordered by depth. 
      */
     Move killerOne;
-    std::vector<Move> killerHistoryOne;
+    std::array<Move, MaxDepth> killerHistoryOne;
     Move killerTwo;
-    std::vector<Move> killerHistryTwo;
+    std::array<Move, MaxDepth> killerHistoryTwo;
     /**
      * Indexed by [pieceColor][piece][toSquare].
      * Counter moves are refutations to moving a certain piece to a certain square,
@@ -88,5 +114,14 @@ private:
      * which is a heuristic that says capturing things worth a lot with pieces not worth a lot is a good idea.
      */
     TripleArray<HeuristicScore, NumPieces, NumSquares, NumPieces> captureHistory;
+    static constexpr std::array<HeuristicScore, NumPieces> mvvLvaScores = {0, 3000, 3500, 5000, 10000, 11000};
+
+    //This normalizes the scores to be centered approximately around 0
+    static const HeuristicScore normalizationConstant = 66666;
+
+    /**
+     * Static Exchange Evaluation scores for each piece
+     */
+    static constexpr std::array<CentipawnScore, NumPieces> seeScores = {100, 400, 400, 700, 1400, 0};
 };
 #endif
