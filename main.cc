@@ -113,7 +113,7 @@ int main() {
                 
                 //For computer moves, those aren't implemented yet, but you will just ask the formed difficulty level for its
                 //move, it will give back a fully legal one, so you can just call applyMove with it without any legality checks or any hard parts about forming it.
-                
+
             } else if (isGameRunning) {
                 std::cout << " ◌ Usage:      move [from] [to] [promotion]" << std::endl;
             } else {
@@ -125,6 +125,7 @@ int main() {
             //Basically just use board.setSquare(color, piece, square), board.clearSquare(square), board.setTurn(turn)
             //board.setCastlingRight(side, isKingside), board.setEnpassantSquare(square). The latter two
             //strongly assume that the correct preconditions are met (i.e. a rook actually exists in the correct place/a pawn actually is in an enpassant'able position)
+            //also, setSquare will not yell at you if a pawn is placed on an illegal rank, check it beforehand
         } else if (command == "help" || command == "man") {
             std::cout << " ◌ ╭──────────────────────────────────────╮" << std::endl;
             std::cout << " ◌ │ HAGNUS MIEMANN CHESS ENGINE - Manual │" << std::endl;
