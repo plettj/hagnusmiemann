@@ -154,6 +154,8 @@ public:
 
     void setSquare(Color color, Piece piece, Square square);
     void clearSquare(Square square);
+    
+    void revertMostRecent();
     /**
      * ASSUMES THE ROOK IN QUESTION EXISTS 
      */
@@ -162,6 +164,7 @@ public:
      * ASSUMES THERE IS A PAWN IN THE CORRECT POSITION TO BE ENPASSANTED 
      */
     void setEnpassantSquare(Square square);
+    Square getEnpassantSquare();
     static Square squareFromString(const std::string& string);
     
     /**
@@ -352,11 +355,12 @@ private:
     void applyCastlingMoveWithUndo(Move& move, UndoData& undo);
     void applyEnpassantMoveWithUndo(Move& move, UndoData& undo);
     void applyPromotionMoveWithUndo(Move& move, UndoData& undo);
+
     //TODO: null move would go here
+
     /**
      * This takes the most recent element of the undo stack
-     */ 
-    void revertMostRecent();
+     */
     void revertMove(UndoData& undo);
 
     bool isSquareInBoardAttacked(Bitboard board, Color turn);

@@ -369,6 +369,10 @@ void Board::setEnpassantSquare(Square square) {
     enpassantSquare = square;
 }
 
+Square Board::getEnpassantSquare() {
+    return enpassantSquare;
+}
+
 void Board::setSquare(Color side, Piece piece, Square square) {
     assert(square != None);
 
@@ -612,7 +616,7 @@ void Board::PrecomputedBinary::populateHashTable(HashEntry* table, Square square
 bool Board::applyMove(Move& move) {
     undoStack.emplace_back();
     applyMoveWithUndo(move, undoStack.back());
-    if(!didLastMoveLeaveInCheck()) {
+    if(didLastMoveLeaveInCheck()) {
         revertMove(undoStack.back());
         undoStack.pop_back();
         return false;
@@ -920,13 +924,13 @@ bool Board::isMovePseudoLegal(Move& move) {
         return move.getMoveType() == Move::MoveType::Normal && testBit(PrecomputedBinary::getBinary().getKnightAttacksFromSquare(move.getFrom()) & ~sides[turn], move.getTo());
     }
     if(fromType == Bishop) {
-        return move.getMoveType() == Move::MoveType::Normal && testBit(PrecomputedBinary::getBinary().getBishopAttacksFromSquare(move.getFrom(), occupiedBoard), move.getTo());
+        return move.getMoveType() == Move::MoveType::Normal && testBit(PrecomputedBinary::getBinary().getBishopAttacksFromSquare(move.getFrom(), occupiedBoard) & ~sides[turn], move.getTo());
     }
     if(fromType == Rook) {
-        return move.getMoveType() == Move::MoveType::Normal && testBit(PrecomputedBinary::getBinary().getRookAttacksFromSquare(move.getFrom(), occupiedBoard), move.getTo());
+        return move.getMoveType() == Move::MoveType::Normal && testBit(PrecomputedBinary::getBinary().getRookAttacksFromSquare(move.getFrom(), occupiedBoard) & ~sides[turn], move.getTo());
     }
     if(fromType == Queen) {
-        return move.getMoveType() == Move::MoveType::Normal && testBit(PrecomputedBinary::getBinary().getQueenAttacksFromSquare(move.getFrom(), occupiedBoard), move.getTo());
+        return move.getMoveType() == Move::MoveType::Normal && testBit(PrecomputedBinary::getBinary().getQueenAttacksFromSquare(move.getFrom(), occupiedBoard) & ~sides[turn], move.getTo());
     }
     if(fromType == King && move.getMoveType() == Move::MoveType::Normal) {
         return testBit(PrecomputedBinary::getBinary().getKingAttacksFromSquare(move.getFrom()) & ~sides[turn], move.getTo());

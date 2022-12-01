@@ -57,12 +57,6 @@ void TextOutput::display(Board& board, std::array<bool, 4> settings, GameState s
     Square kingSquare = board.getKing();
     Color turn = board.getTurn();
 
-    /*
-    enum GameState {
-        Neutral = 0, WhiteResigned, BlackResigned, WhiteGotMated, BlackGotMated, Stalemate, FiftyMove, Threefold, InsufficientMaterial
-    };
-    */
-
     bool checked = board.isSquareAttacked(kingSquare, turn);
 
     std::string gameMessage[2] = {"", ""};
@@ -99,11 +93,22 @@ void TextOutput::display(Board& board, std::array<bool, 4> settings, GameState s
             gameMessage[0] = "Game drawn by     │";
             gameMessage[1] = "scant material.   │";
             break;
+        default:
+            break;
     }
+
+    std::string lastMoveString = "";
+    Move lastMove = board.getLastPlayedMove();
+    int plies = board.getPlies();
 
     bool blackPerspective = (settings[2] && static_cast<bool>(turn));
 
-    out << "   " << "╔═════════════════" << ((settings[3]) ? "═══════" : "") << (settings[0] && !settings[1] ? "" : "═") << "╗" << std::endl;
+    out << "   " << "╔═════════════════" << ((settings[3]) ? "═══════" : "") << (settings[0] && !settings[1] ? "" : "═") << "╗";
+    if (plies && !state) {
+        out << "   ◈  " << ((plies + 1) / 2) << ". " << (turn ? "... " : "") << lastMove.toString() << (checked ? "+" : "");
+    }
+    out << std::endl;
+
     for (int rank = 0; rank < NumRanks; ++rank) {
         int realRank = (blackPerspective) ? rank : 7 - rank;
 
@@ -142,8 +147,10 @@ void TextOutput::display(Board& board, std::array<bool, 4> settings, GameState s
                 case 5:
                     out << " ╰───────────────────╯";
             }
-        } else if (rank == 6 && checked && !state) {
-            out << "   ◈  " << (turn ? "Black" : "White") << " is in check.";
+        } else {
+            if (rank == 6 && checked) {
+                out << "   ◈  " << (turn ? "Black" : "White") << " is in check.";
+            }
         }
         out << std::endl;
     }

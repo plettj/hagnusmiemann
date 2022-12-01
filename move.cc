@@ -58,7 +58,7 @@ std::string Move::toString() const {
         switch(getPromoType()) {
 	        case Piece::King:	
 	        case Piece::Pawn:
-                return "AHHHHHHHHHHH"; //that's no bueno
+                return "AHHHHHHHHHHH"; // That's no bueno. Our input handler takes care of it though!
 	        case Piece::Knight:
 		        fr += "N";
 		        break;
