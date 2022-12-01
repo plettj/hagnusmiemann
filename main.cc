@@ -278,6 +278,9 @@ int main() {
         } else if (command == "undo") {
             if (isGameRunning) {
                 int plies = board.getPlies();
+
+                // TODO: plies is all bad! oh no.
+
                 if (plies) {
                     board.revertMostRecent();
                     io.display(board, GameState::Neutral);

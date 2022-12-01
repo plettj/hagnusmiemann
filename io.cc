@@ -100,12 +100,14 @@ void TextOutput::display(Board& board, std::array<bool, 4> settings, GameState s
     std::string lastMoveString = "";
     Move lastMove = board.getLastPlayedMove();
     int plies = board.getPlies();
+    
+    // TODO: plies are all wrong!
 
     bool blackPerspective = (settings[2] && static_cast<bool>(turn));
 
     out << "   " << "╔═════════════════" << ((settings[3]) ? "═══════" : "") << (settings[0] && !settings[1] ? "" : "═") << "╗";
-    if (plies && !state) {
-        out << "   ◈  " << ((plies + 1) / 2) << ". " << (turn ? "... " : "") << lastMove.toString() << (checked ? "+" : "");
+    if (plies > 0 && !state) {
+        out << "   ◈  " << (plies / 2) << ". " << (turn ? "" : "... ") << lastMove.toString() << (checked ? "+" : "");
     }
     out << std::endl;
 
