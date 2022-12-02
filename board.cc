@@ -1230,7 +1230,7 @@ int Board::getPlies() const {
     return plies;
 }
 
-int Board::getMoveCount() const {
+int Board::getTotalPlies() const {
     return fullmoves;
 }
 
