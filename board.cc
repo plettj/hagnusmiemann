@@ -844,7 +844,6 @@ void Board::revertMove(UndoData& undo) {
     Move& move = undo.move;
 
     turn = flipColor(turn);
-    moveCounter--;
     fullmoves--;
 
     switch(move.getMoveType()) {
@@ -1229,6 +1228,10 @@ Move Board::getLastPlayedMove() {
 
 int Board::getPlies() const {
     return plies;
+}
+
+int Board::getMoveCount() const {
+    return fullmoves;
 }
 
 Piece Board::getLastMovedPiece() const {

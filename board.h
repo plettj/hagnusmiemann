@@ -185,6 +185,7 @@ public:
     Move getLastPlayedMove();
 
     int getPlies() const;
+    int getMoveCount() const;
     Piece getLastMovedPiece() const;
 
     bool isSquareAttacked(Square square, Color side); // the side of the piece on the square, not the attacking team.
@@ -307,7 +308,6 @@ private:
     Color turn;
     int plies;
     int fullmoves;
-    int moveCounter;
     Square enpassantSquare;
 
 

@@ -229,9 +229,9 @@ void HeuristicMoveOrderer::seedMoveOrderer(bool tacticalSearch, CentipawnScore s
         counter = Move{};
     } else {
         //Generate refutation moves
-        killerOne = killerHistoryOne[board.getPlies()];
-        killerTwo = killerHistoryTwo[board.getPlies()];
-        if(board.getPlies() > 0 && !board.getLastPlayedMove().isMoveNone()) {
+        killerOne = killerHistoryOne[board.getMoveCount()];
+        killerTwo = killerHistoryTwo[board.getMoveCount()];
+        if(board.getMoveCount() > 0 && !board.getLastPlayedMove().isMoveNone()) {
             counter = counterMoves[flipColor(board.getTurn())][board.getLastMovedPiece()][board.getLastPlayedMove().getTo()];
         } else {
             counter = Move{};
