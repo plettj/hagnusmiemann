@@ -123,9 +123,9 @@ public:
     void setTurn(Color turn);
 
     bool hasNonPawns(Color side) const;
-    bool isDrawn(int threefoldHeight) const;
+    bool isDrawn() const;
     bool isFiftyMoveRuleDraw() const;
-    bool isThreefoldDraw(int threefoldHeight) const;
+    bool isThreefoldDraw() const;
     bool isInsufficientMaterialDraw() const;
    
     /**

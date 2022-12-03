@@ -116,8 +116,8 @@ bool Board::hasNonPawns(Color side) const {
     return (sides[side] & (pieces[King] & pieces[Pawn])) != sides[side];
 }
 
-bool Board::isDrawn(int threefoldHeight) const {
-    return isFiftyMoveRuleDraw() || isThreefoldDraw(threefoldHeight) || isInsufficientMaterialDraw();
+bool Board::isDrawn() const {
+    return isFiftyMoveRuleDraw() || isThreefoldDraw() || isInsufficientMaterialDraw();
 }
 
 //TODO: CS246 might not want us to implement this
@@ -125,8 +125,21 @@ bool Board::isFiftyMoveRuleDraw() const {
     return plies > 99; 
 }
 
-bool Board::isThreefoldDraw(int threefoldHeight) const {
-    //TODO: this requires Zobrist keys to be done 
+bool Board::isThreefoldDraw() const {
+    int repetitions = 0;
+    //Look through all the moves played thus far
+    for(int i = fullmoves - 2; i >= 0; i -= 2) {
+        //we can no longer repeat if a fifty-move-rule resetting move was made
+        if(i < fullmoves - plies) {
+            break;
+        }
+        if(undoStack[i].positionHash == positionHash) {
+            if(++repetitions == 3) {
+                return true;
+            }
+        }    
+    }
+
     return false;
 }
 
@@ -439,7 +452,7 @@ std::string Board::getCastlingRights() const {
             output += "q";
         }
     }
-    return output.empty() ? return "-" : output;
+    return output.empty() ? "-" : output;
 }
 
 void Board::setEnpassantSquare(Square square) {
@@ -557,19 +570,6 @@ Board Board::createBoardFromFEN(std::string fen) {
 	    }
     }
 
-    //Create a bit mask of where the kings and rooks are
-    for(int sq = 0; sq < NumSquares; sq++) {
-	    Square s = getSquare(sq);
-        board.castleMasks[s] = ~0ull;
-	    if(board.testBit(board.castlingRooks, s)) {
-	        clearBit(board.castleMasks[sq], s);
-	    } else if(board.testBit(board.sides[White] & board.pieces[King], s)) {
-	        board.castleMasks[sq] &= ~board.sides[White];
-	    } else if(board.testBit(board.sides[Black] & board.pieces[King], s)) {
-	        board.castleMasks[sq] &= ~board.sides[Black];
-	    }
-    }
-
     //TODO: hash here probably (reset the rooks bits)
 
     fen.erase(0, fen.find(" ") + 1);
@@ -592,6 +592,18 @@ Board Board::createBoardFromFEN(std::string fen) {
 
 void Board::validateLegality() {
     assert(getBoardLegalityState() == Legal);
+    //Create a bit mask of where the kings and rooks are
+    for(int sq = 0; sq < NumSquares; sq++) {
+	    Square s = getSquare(sq);
+        castleMasks[s] = ~0ull;
+	    if(testBit(castlingRooks, s)) {
+	        clearBit(castleMasks[sq], s);
+	    } else if(testBit(sides[White] & pieces[King], s)) {
+	        castleMasks[sq] &= ~sides[White];
+	    } else if(testBit(sides[Black] & pieces[King], s)) {
+	        castleMasks[sq] &= ~sides[Black];
+	    }
+    }
     kingAttackers = getAllKingAttackers();
 }
 
