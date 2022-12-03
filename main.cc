@@ -61,7 +61,7 @@ int main() {
     std::cout << "  │     / __| | |_    ___   ___  ___   | __|  _ _    __ _  (_)  _ _    ___     │" << std::endl;
     std::cout << "  │    | (__  | ' \\  / -_) (_-< (_-<   | _|  | ' \\  / _` | | | | ' \\  / -_)    │" << std::endl;
     std::cout << "  │     \\___| |_||_| \\___| /__/ /__/   |___| |_||_| \\__, | |_| |_||_| \\___|    │" << std::endl;
-    std::cout << "  |                                                 |___/                      |" << std::endl;
+    std::cout << "  │                                                 |___/                      │" << std::endl;
     std::cout << "  ╰────────────────────────────────────────────────────────────────────────────╯" << std::endl;
 
     std::cout << std::endl;
@@ -89,10 +89,11 @@ int main() {
                 std::cout << "╰───────────────────┴──────────────────" << (totalGames + 1 > 9 ? "─" : "") << "╯" << std::endl;
                 totalGames++;
                 isGameRunning = true;
+                state = GameState::Neutral;
                 io.display(board, state);
             } else if (!isGameRunning) {
                 if (second == "") {
-                    std::cout << " ◌ Usage:      game [white] [black]" << std::endl;
+                    std::cout << " ◌ Usage:  game [white] [black]" << std::endl;
                 } else {
                     std::cout << " ◌ Malformed side names. Each must be `player` or `computer[1-4]`" << std::endl;
                 }
@@ -104,11 +105,16 @@ int main() {
                 std::cout << " ◌ No game is currently in progress." << std::endl;
             } else {
                 Color turn = board.getTurn();
-                io.display(board, static_cast<GameState>(turn + 1));
-                if (turn) scores.second++;
-                else scores.first++;
-                isGameRunning = false;
-                board = Board::createBoardFromFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
+                if ((players.first && !turn) || (players.second && turn)) {
+                    std::cout << " ◌ You cannot make the computer resign." << std::endl;
+                } else {
+                    io.display(board, static_cast<GameState>(turn + 1));
+                    if (turn) scores.first++;
+                    else scores.second++;
+                    isGameRunning = false;
+                    state = GameState::Neutral;
+                    board = Board::createBoardFromFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
+                }
             }
         } else if (command == "move") {
             std::string first = "";
@@ -122,14 +128,15 @@ int main() {
                 if (first == "") { // Command `move` with no parameters. Do computer move!
                     if ((players.first && !board.getTurn()) || (players.second && board.getTurn())) {
 
-                    // TODO: code computer move functionality with Alex!
+                        // TODO: code computer move functionality with Alex!
+                        std::cout << " ◌ We haven't implemented computer move functionality yet." << std::endl;
 
                     } else {
                         std::cout << " ◌ It's a player's turn. Specify the move." << std::endl;
-                        std::cout << " ◌ Usage:      move [from] [to] [promotion?]" << std::endl;
+                        std::cout << " ◌ Usage:  move [from] [to] [promotion?]" << std::endl;
                     }
                 } else if (second == "") {
-                    std::cout << " ◌ Usage:      move" << std::endl;
+                    std::cout << " ◌ Usage:  move" << std::endl;
                     std::cout << " ◌ or          move [from] [to] [promotion?]" << std::endl;
                 } else if ((!players.first && !board.getTurn()) || (!players.second && board.getTurn())) {
                     if (std::regex_match(first, std::regex("^[a-h][1-8]$")) && std::regex_match(first, std::regex("^[a-h][1-8]$"))) {
@@ -152,8 +159,8 @@ int main() {
                                         // Even `e1 b1` can cause queenside castling. This is intentional.
                                         type = Move::Castle;
 
-                                        if (second[1] > 'e') second[1] = 'h';
-                                        else second[1] = 'a';
+                                        if (second[0] > 'e') second[0] = 'h';
+                                        else second[0] = 'a';
                                         to = Board::squareFromString(second);
 
                                     } else if (fileDistance > 1 || rankDistance > 1) {
@@ -173,7 +180,7 @@ int main() {
                                         else if (prom == "B") promPiece = Piece::Rook;
                                         else if (prom == "N") promPiece = Piece::Rook;
                                         else {
-                                            std::cout << " ◌ Usage:      move [from] [to] [promotion]" << std::endl;
+                                            std::cout << " ◌ Usage:  move [from] [to] [promotion]" << std::endl;
                                             std::cout << " ◌ A valid promotion piece (Q, R, B, N) was not specified." << std::endl;
                                             std::cout << " ● Command: ";
                                             continue; // To stop the code from trying to play the move.
@@ -187,11 +194,26 @@ int main() {
                                 if (pseudoLegal) {
                                     bool fullyLegal = board.applyMove(move);
                                     if (fullyLegal) {
-                                        //Color turn = board.getTurn();
+                                        Color turn = board.getTurn();
 
-                                        // TODO: With alex, update `state` based on the result of the game
-
-                                        io.display(board, state);
+                                        if (!board.countLegalMoves() || board.isDrawn(board.getTotalPlies())) { // Game is over
+                                            if (board.isSideInCheck(turn)) { // In Check
+                                                if (turn) scores.first++;
+                                                else scores.second++;
+                                                state = static_cast<GameState>(turn + 3);
+                                            } else {
+                                                if (board.isInsufficientMaterialDraw()) state = GameState::InsufficientMaterial;
+                                                else if (board.isFiftyMoveRuleDraw()) state = GameState::FiftyMove;
+                                                else if (board.isThreefoldDraw(board.getTotalPlies())) state = GameState::Threefold;
+                                                else state = GameState::Stalemate;
+                                            }
+                                            io.display(board, state);
+                                            isGameRunning = false;
+                                            state = GameState::Neutral;
+                                            board = Board::createBoardFromFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
+                                        } else {
+                                            io.display(board, state);
+                                        }
                                     } else {
                                         std::cout << " ◌ This move leaves you in check." << std::endl;
                                     }
@@ -219,69 +241,162 @@ int main() {
                     std::cout << " ◌ It's a computer's turn. Just type `move` to make it play." << std::endl;
                 }
             } else if (isGameRunning) {
-                std::cout << " ◌ Usage:      move [from] [to] [promotion?]" << std::endl;
+                std::cout << " ◌ Usage:  move [from] [to] [promotion?]" << std::endl;
             } else {
                 std::cout << " ◌ No game is currently in progress." << std::endl;
             }
         } else if (command == "setup") {
-            // TODO with Alex
-            //Basically just use board.setSquare(color, piece, square), board.clearSquare(square), board.setTurn(turn)
-            //board.setCastlingRight(side, isKingside), board.setEnpassantSquare(square). The latter two
-            //strongly assume that the correct preconditions are met (i.e. a rook actually exists in the correct place/a pawn actually is in an enpassant'able position)
-            //also, setSquare will not yell at you if a pawn is placed on an illegal rank, check it beforehand
+            std::string first = "";
+            lineStream >> first;
+
+            if (!isGameRunning) {
+                if (first == "") {
+                    std::cout << " ◌ ╭─────╴ SETUP MODE - Opened" << std::endl;
+                    std::cout << " ◌ ├╴ + [piece] [square]   Adds a piece." << std::endl;
+                    std::cout << " ◌ ├╴ - [square]           Removes a piece." << std::endl;
+                    std::cout << " ◌ ├╴ = [colour]           Make it `colour`'s turn to play." << std::endl;
+                    // If we wanted to implement setting castling rights or en-passant squares, we would use:
+                    // board.setCastlingRight(side, isKingside);
+                    // board.setEnpassantSquare(square);
+                    std::cout << " ◌ ├╴ done                 Exits setup mode." << std::endl;
+                    
+                    board = Board::createBoardFromFEN("4k3/8/8/8/8/8/8/4K3 w - - 0 1");
+                    io.display(board, state, true);
+
+                    std::cout << " ● │ Command: ";
+                    while (std::getline(std::cin, currLine)) {
+                        std::istringstream lineStream{currLine};
+                        lineStream >> command;
+
+                        if (command == "+") {
+                            std::string first = "";
+                            lineStream >> first;
+                            std::string second = "";
+                            lineStream >> second;
+
+                            if (second != "") {
+                                if (!std::regex_match(first, std::regex("^[pnbrqkPNBRQK]$"))) {
+                                    std::cout << " ◌ │ A valid piece (p, n, b, r, q, k, P, N, B, R, Q, K) was not specified." << std::endl;
+                                } else if (!std::regex_match(second, std::regex("^[a-h][1-8]$"))){
+                                    std::cout << " ◌ │ A valid square (a1 through h8) was not specified." << std::endl;
+                                } else {
+                                    Color color = (first[0] > 96) ? Color::White : Color::Black;
+                                    Piece piece = charToPiece((color ? first[0] : (first[0] - 32)));
+                                    Square square = Board::squareFromString(second);
+                                    board.clearSquare(square);
+                                    board.setSquare(color, piece, square);
+                                    io.display(board, state, true);
+                                }
+                            } else {
+                                std::cout << " ◌ │ Usage:  + [pnbrqkPNBRQK] [a-h][1-8]" << std::endl;
+                            }
+                        } else if (command == "-") {
+                            std::string first = "";
+                            lineStream >> first;
+
+                            if (first != "") {
+                                if (!std::regex_match(first, std::regex("^[a-h][1-8]$"))) {
+                                    std::cout << " ◌ │ A valid square (a1 through h8) was not specified." << std::endl;
+                                } else {
+                                    Square square = Board::squareFromString(first);
+                                    board.clearSquare(square);
+                                    io.display(board, state, true);
+                                }
+                            } else {
+                                std::cout << " ◌ │ Usage:  - [square]" << std::endl;
+                            }
+                        } else if (command == "=") {
+                            std::string first = "";
+                            lineStream >> first;
+
+                            if (first != "") {
+                                if (first == "black" || first == "white") {
+                                    Color turn = (first == "white") ? Color::White : Color::Black;
+                                    board.setTurn(turn);
+                                    io.display(board, state, true);
+                                } else {
+                                    std::cout << " ◌ │ A valid colour (black, white) was not specified." << std::endl;
+                                }
+                            } else {
+                                std::cout << " ◌ │ Usage:  = [colour]" << std::endl;
+                            }
+                        } else if (command == "done") {
+                            // TODO: verify that board is "legal"!
+                            break;
+                        } else if (command != "") { // Invalid command
+                            std::cout << " ◌ │ `" << command << "` is not a command." << std::endl;
+                        }
+                        std::cout << " ● │ Command: ";
+                    }
+                    if (std::cin.eof()) std::cout << "Quitting..." << std::endl;
+                    std::cout << " ◌ ╰─────╴ SETUP MODE ─ Closed" << std::endl;
+                } else {
+                    // fen setup mode
+                    std::string fen = currLine.substr(6);
+                    if (std::regex_match(fen, std::regex("\\s*([rnbqkpRNBQKP1-8]+\\/){7}([rnbqkpRNBQKP1-8]+)\\s[bw-]\\s(([a-hkqA-HKQ]{1,4})|(-))\\s(([a-h][36])|(-))\\s\\d+\\s\\d+\\s*"))) {
+                        std::cout << " ◌ ╭─────╴ SETUP MODE ─ Opened" << std::endl;
+                        board = Board::createBoardFromFEN(fen); // No error-checking here because official FEN correctness is a pain in the ass.
+                        std::cout << " ◌ │ Board successfully initialized with your FEN: " << std::endl;
+                        io.display(board, state, true); // passing in `true` means IO displays it in setup mode.
+                        std::cout << " ◌ ╰─────╴ SETUP MODE ─ Closed" << std::endl;
+                    } else {
+                        std::cout << " ◌ Your FEN was malformed." << std::endl;
+                        std::cout << " ◌ Usage:  setup [no parameters]" << std::endl;
+                        std::cout << " ◌         setup [FEN]" << std::endl;
+                    }
+                }
+            } else {
+                std::cout << " ◌ A game is already in progress." << std::endl;
+            }
         } else if (command == "help" || command == "man") {
             std::cout << " ◌ ╭──────────────────────────────────────╮" << std::endl;
             std::cout << " ◌ │ HAGNUS MIEMANN CHESS ENGINE - Manual │" << std::endl;
             std::cout << " ◌ ╰──────────────────────────────────────╯" << std::endl;
-            std::cout << " ◌ ╭──╴" << std::endl;
-            std::cout << " ◌ │ exit" << std::endl;
-            std::cout << " ◌ │         Immediately terminate the program." << std::endl;
-            std::cout << " ◌ │ game [white] [black]" << std::endl;
-            std::cout << " ◌ │         Options are `player` and `computer[1-4]`." << std::endl;
-            std::cout << " ◌ │ help" << std::endl;
+            std::cout << " ◌ ╭─────╴" << std::endl;
+            std::cout << " ◌ ├╴ exit" << std::endl;
+            std::cout << " ◌ │         Immediately terminates the program." << std::endl;
+            std::cout << " ◌ ├╴ game [white] [black]" << std::endl;
+            std::cout << " ◌ │         Starts a new game. Options are `player` and `computer[1-4]`." << std::endl;
+            std::cout << " ◌ ├╴ help" << std::endl;
             std::cout << " ◌ │         Opens this manual. `man` also does." << std::endl;
-            std::cout << " ◌ │ make" << std::endl;
-            std::cout << " ◌ │         Just here to catch programmers who forgot to CTRL+C!" << std::endl;
-            std::cout << " ◌ │ move" << std::endl;
-            std::cout << " ◌ │         Tells the computer to play its move." << std::endl;
-            std::cout << " ◌ │ move [from] [to] [promotion?]" << std::endl;
-            std::cout << " ◌ │         Play a move. For example: `move e1 g1` or `move g2 g1 R`." << std::endl;
-            std::cout << " ◌ │ perft [0-50]" << std::endl;
-            std::cout << " ◌ │         Run a PERFT test on the current board." << std::endl;
-            std::cout << " ◌ │ print" << std::endl;
-            std::cout << " ◌ │         Display the current game." << std::endl;
-            std::cout << " ◌ │ quit" << std::endl;
-            std::cout << " ◌ │         Display the final scores, and exit the program." << std::endl;
-            std::cout << " ◌ │ resign" << std::endl;
+            //std::cout << " ◌ ├╴ make" << std::endl;
+            //std::cout << " ◌ │         Just here to catch programmers who forgot to CTRL+C!" << std::endl;
+            std::cout << " ◌ ├╴ move" << std::endl;
+            std::cout << " ◌ │         Tells the computer to compute and play its move." << std::endl;
+            std::cout << " ◌ ├╴ move [from] [to] [promotion?]" << std::endl;
+            std::cout << " ◌ │         Plays a move. For example: `move e1 g1` or `move g2 g1 R`." << std::endl;
+            std::cout << " ◌ ├╴ perft [0-15]" << std::endl;
+            std::cout << " ◌ │         Runs a PERFT test on the current board." << std::endl;
+            std::cout << " ◌ ├╴ print" << std::endl;
+            std::cout << " ◌ │         Displays the current game." << std::endl;
+            std::cout << " ◌ ├╴ quit" << std::endl;
+            std::cout << " ◌ │         Submits EOF; displays the final scores and exits the program." << std::endl;
+            std::cout << " ◌ ├╴ resign" << std::endl;
             std::cout << " ◌ │         Resigns the current game." << std::endl;
-            std::cout << " ◌ │ scores" << std::endl;
-            std::cout << " ◌ │         Display the current scores of White and Black players." << std::endl;
-            std::cout << " ◌ │ settings" << std::endl;
-            std::cout << " ◌ │         Display the current settings." << std::endl;
-            std::cout << " ◌ │ setup [FEN]" << std::endl;
-            std::cout << " ◌ │         Initialize a game with a well-formed FEN." << std::endl;
-            std::cout << " ◌ │ setup" << std::endl;
-            std::cout << " ◌ │         Enters setup mode, which has the following methods:" << std::endl;
-            std::cout << " ◌ │         + [piece] [at]" << std::endl;
-            std::cout << " ◌ │                 Place `piece` at square `at`, on top of whatever is there." << std::endl;
-            std::cout << " ◌ │         - [at]" << std::endl;
-            std::cout << " ◌ │                 Remove any piece at square `at`." << std::endl;
-            std::cout << " ◌ │         = [colour]" << std::endl;
-            std::cout << " ◌ │                 Make it `colour`'s turn to play. Can be `white` or `black`." << std::endl;
-            std::cout << " ◌ │         done" << std::endl;
-            std::cout << " ◌ │                 Exit setup mode, if restrictions are met." << std::endl;
-            std::cout << " ◌ │ toggle [0-3]" << std::endl;
-            std::cout << " ◌ │         Toggle the numbered setting." << std::endl;
-            std::cout << " ◌ │ undo" << std::endl;
+            std::cout << " ◌ ├╴ scores" << std::endl;
+            std::cout << " ◌ │         Displays the current scores of White and Black players." << std::endl;
+            std::cout << " ◌ ├╴ settings" << std::endl;
+            std::cout << " ◌ │         Displays the current settings." << std::endl;
+            std::cout << " ◌ ├╴ setup [FEN]" << std::endl;
+            std::cout << " ◌ │         Initializes a game with a well-formed FEN." << std::endl;
+            std::cout << " ◌ ├╴ setup" << std::endl;
+            std::cout << " ◌ ╰──╮      Enters setup mode, which has the following methods:" << std::endl;
+            std::cout << " ◌    ├╴ + [piece] [square]" << std::endl;
+            std::cout << " ◌    │          Places `piece` at square `square`, on top of whatever is there." << std::endl;
+            std::cout << " ◌    ├╴ - [square]" << std::endl;
+            std::cout << " ◌    │          Removes any piece at square `square`." << std::endl;
+            std::cout << " ◌    ├╴ = [colour]" << std::endl;
+            std::cout << " ◌    │          Makes it `colour`'s turn to play." << std::endl;
+            std::cout << " ◌    ├╴ done" << std::endl;
+            std::cout << " ◌ ╭──╯          Exits setup mode, if restrictions are met." << std::endl;
+            std::cout << " ◌ ├╴ toggle [0-3]" << std::endl;
+            std::cout << " ◌ │         Toggles the numbered setting." << std::endl;
+            std::cout << " ◌ ├╴ undo" << std::endl;
             std::cout << " ◌ │         Undoes the previous move in the current game." << std::endl;
-            std::cout << " ◌ ╰──╴" << std::endl;
+            std::cout << " ◌ ╰─────╴" << std::endl;
         } else if (command == "undo") {
             if (isGameRunning) {
-                int plies = board.getPlies();
-
-                // TODO: plies is all bad! oh no.
-
-                if (plies) {
+                if (board.getTotalPlies() > 1) {
                     board.revertMostRecent();
                     io.display(board, GameState::Neutral);
                 } else {
@@ -308,16 +423,16 @@ int main() {
             if (lineStream && n >= 0 && n <= 4) {
                 io.toggleSetting(n);
             } else {
-                std::cout << " ◌ Usage:      toggle [0-4]" << std::endl;
+                std::cout << " ◌ Usage:  toggle [0-4]" << std::endl;
                 std::cout << " ◌ Type `settings` for the setting list." << std::endl;
             }
         } else if (command == "perft") {
             int n = -1;
             lineStream >> n;
-            if (lineStream && n >= 0 && n <= 50) {
+            if (lineStream && n >= 0 && n <= 15) {
                 board.perftTest(n);
             } else {
-                std::cout << " ◌ Usage:      perft [0-50]" << std::endl;
+                std::cout << " ◌ Usage:  perft [0-15]" << std::endl;
             }
         } else if (command == "make") {
             std::cout << " ◌ You forgot to CTRL+C, you dingbat." << std::endl;
@@ -331,7 +446,7 @@ int main() {
             } else {
                 std::cout << " ◌ No game is currently in progress." << std::endl;
             }
-        } else { // Invalid command
+        } else if (command != "") { // Invalid command
             std::cout << " ◌ `" << command << "` is not a command. Type `help` for the manual." << std::endl;
         }
         std::cout << " ● Command: ";

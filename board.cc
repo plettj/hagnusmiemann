@@ -492,7 +492,9 @@ Board Board::createBoardFromFEN(std::string fen) {
     token = fen.substr(0, fen.find(" "));
     board.fullmoves = std::stoi(token);
 
-    board.kingAttackers = board.getAllKingAttackers();
+    //if ((board.pieces[King] & board.sides[board.turn]) != 0) {
+        board.kingAttackers = board.getAllKingAttackers();
+    //}
     return board;
 }
 

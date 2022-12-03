@@ -46,14 +46,14 @@ bool IO::getSetting(int setting) {
 void IO::makeGraphicOutput() {
     // TODO
 }
-void IO::display(Board& board, GameState state) {
-    input->notifyOutputs(board, std::array<bool, 4>{basicPieces, showCheckers, boardPerspective, wideBoard}, state);
+void IO::display(Board& board, GameState state, bool setup) {
+    input->notifyOutputs(board, std::array<bool, 4>{basicPieces, showCheckers, boardPerspective, wideBoard}, state, setup);
 }
 
 TextOutput::TextOutput(Input* toFollow, std::ostream& out): Output{toFollow}, out{out} {
     toFollow->attach(this);
 }
-void TextOutput::display(Board& board, std::array<bool, 4> settings, GameState state) {
+void TextOutput::display(Board& board, std::array<bool, 4> settings, GameState state, bool setup) {
     Square kingSquare = board.getKing();
     Color turn = board.getTurn();
 
@@ -82,8 +82,8 @@ void TextOutput::display(Board& board, std::array<bool, 4> settings, GameState s
             gameMessage[1] = "stalemate.        │";
             break;
         case FiftyMove:
-            gameMessage[0] = "Game drawn by     │";
-            gameMessage[1] = "the 50-move rule. │";
+            gameMessage[0] = "Game drawn by you being so darn slow at whatever the heck you were trying to   │";
+            gameMessage[1] = "do that you played 50 non-permanent moves in a row, you absolute *hand towel*. │";
             break;
         case Threefold:
             gameMessage[0] = "Game drawn by     │";
@@ -99,14 +99,12 @@ void TextOutput::display(Board& board, std::array<bool, 4> settings, GameState s
 
     std::string lastMoveString = "";
     Move lastMove = board.getLastPlayedMove();
-    int plies = board.getPlies();
-    
-    // TODO: plies are all wrong!
+    int plies = board.getTotalPlies();
 
     bool blackPerspective = (settings[2] && static_cast<bool>(turn));
 
-    out << "   " << "╔═════════════════" << ((settings[3]) ? "═══════" : "") << (settings[0] && !settings[1] ? "" : "═") << "╗";
-    if (plies > 0 && !state) {
+    out << (setup ? " ◌ ╰╮   " : "   ") << "╔═════════════════" << ((settings[3]) ? "═══════" : "") << (settings[0] && !settings[1] ? "" : "═") << "╗";
+    if (plies > 1 && !state) {
         out << "   ◈  " << (plies / 2) << ". " << (turn ? "" : "... ") << lastMove.toString() << (checked ? "+" : "");
     }
     out << std::endl;
@@ -114,7 +112,7 @@ void TextOutput::display(Board& board, std::array<bool, 4> settings, GameState s
     for (int rank = 0; rank < NumRanks; ++rank) {
         int realRank = (blackPerspective) ? rank : 7 - rank;
 
-        out << " " << realRank + 1 << " ║" << ((settings[3]) ? "" : " ");
+        out << (setup ? " ◌  │ " : " ") << realRank + 1 << " ║" << ((settings[3]) ? "" : " ");
 
         for (int file = 0; file < NumFiles; ++file) {
             int realFile = (blackPerspective) ? 7 - file : file;
@@ -143,11 +141,11 @@ void TextOutput::display(Board& board, std::array<bool, 4> settings, GameState s
         if (state) {
             switch (rank) {
                 case 2:
-                    out << " ╭───────────────────╮"; break;
+                    out << " ╭───────────────────" << (state == GameState::FiftyMove ? "─────────────────────────────────────────────────────────────" : "") << "╮"; break;
                 case 3: case 4:
                     out << " │ " << gameMessage[rank - 3]; break;
                 case 5:
-                    out << " ╰───────────────────╯";
+                    out << " ╰───────────────────" << (state == GameState::FiftyMove ? "─────────────────────────────────────────────────────────────" : "") << "╯";
             }
         } else {
             if (rank == 6 && checked) {
@@ -157,11 +155,11 @@ void TextOutput::display(Board& board, std::array<bool, 4> settings, GameState s
         out << std::endl;
     }
 
-    out << "   " << "╚═════════════════" << ((settings[3]) ? "═══════" : "") << (settings[0] && !settings[1] ? "" : "═") << "╝";
+    out << (setup ? " ◌  │   " : "   ") << "╚═════════════════" << ((settings[3]) ? "═══════" : "") << (settings[0] && !settings[1] ? "" : "═") << "╝";
     if (!state) {
         out << "   ◈  " << (turn ? "Black" : "White") << " to move.";
     }
-    out << std::endl << "   " << (settings[3] ? "" : " ");
+    out << std::endl << (setup ? " ◌ ╭╯   " : "   ") << (settings[3] ? "" : " ");
 
     for (int file = 0; file < NumFiles; ++file) {
         int realFile = (blackPerspective) ? 7 - file : file;
@@ -175,7 +173,7 @@ void TextOutput::display(Board& board, std::array<bool, 4> settings, GameState s
 GraphicalOutput::GraphicalOutput(Input* toFollow): Output{toFollow} {
     toFollow->attach(this);
 }
-void GraphicalOutput::display(Board& board, std::array<bool, 4> settings, GameState state) {
+void GraphicalOutput::display(Board& board, std::array<bool, 4> settings, GameState state, bool setup) {
     // TODO
 }
 
@@ -191,6 +189,6 @@ void TextInput::detach(Output* output) {
         }
     }
 }
-void TextInput::notifyOutputs(Board& board, std::array<bool, 4> settings, GameState state) {
-    for (auto out : outputs) out->display(board, settings, state);
+void TextInput::notifyOutputs(Board& board, std::array<bool, 4> settings, GameState state, bool setup) {
+    for (auto out : outputs) out->display(board, settings, state, setup);
 }

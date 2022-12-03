@@ -67,6 +67,17 @@ inline Color getColorOfPiece(ColorPiece piece) {
 inline ColorPiece makePiece(Piece type, Color color) {
     return static_cast<ColorPiece>(type * 4 + color);
 }
+inline Piece charToPiece(char piece) {
+    switch (piece) {
+        case 'P': return Piece::Pawn;
+        case 'N': return Piece::Knight;
+        case 'B': return Piece::Bishop;
+        case 'R': return Piece::Rook;
+        case 'Q': return Piece::Queen;
+        case 'K': return Piece::King;
+        default: return Piece::Pawn; // This function assumes `piece` is one of the 6 options, anyway.
+    }
+}
 /**
  * To be compatible with internal board representation (LERF as discussed in Board's documentation),
  * this is the enumeration of all squares in a nice alignment
