@@ -15,6 +15,7 @@ class Output;
 class IO {
     Input* input;
     std::vector<Output*> outputs;
+    std::ostream& out; // for the Input object to use.
 
     bool basicPieces = true; // Whether pieces are drawn with text [eg. K] or ascii pieces [eg. ♔]
     bool showCheckers = false; // Whether to differentiate the dark and light squares
@@ -22,12 +23,13 @@ class IO {
     bool wideBoard = false; // Whether to print the board with wide style
     bool autoMove = false; // Whether to 
 public:
-    IO(std::istream& in);
+    IO(std::istream& in, std::ostream& out);
     void makeTextOutput(std::ostream& out);
     void makeGraphicOutput();
     void display(Board& board, GameState state, bool setup = false);
     void toggleSetting(int setting);
     bool getSetting(int setting);
+    void runProgram();
 };
 
 // Observer
@@ -66,6 +68,7 @@ public:
     virtual void attach(Output* output) = 0;
     virtual void detach(Output* output) = 0;
     virtual void notifyOutputs(Board& board, std::array<bool, 4> settings, GameState state, bool setup) = 0;
+    virtual void runProgram(IO& io, std::ostream& out) = 0;
 };
 
 // Concrete Subject #1
@@ -76,6 +79,7 @@ public:
     void attach(Output* output) override;
     void detach(Output* output) override;
     void notifyOutputs(Board& board, std::array<bool, 4> settings, GameState state, bool setup) override;
+    void runProgram(IO& io, std::ostream& out) override;
 };
 
 #endif
