@@ -116,8 +116,8 @@ bool Board::hasNonPawns(Color side) const {
     return (sides[side] & (pieces[King] & pieces[Pawn])) != sides[side];
 }
 
-bool Board::isDrawn(int threefoldHeight) const {
-    return isFiftyMoveRuleDraw() || isThreefoldDraw(threefoldHeight) || isInsufficientMaterialDraw();
+bool Board::isDrawn() const {
+    return isFiftyMoveRuleDraw() || isThreefoldDraw() || isInsufficientMaterialDraw();
 }
 
 //TODO: CS246 might not want us to implement this
@@ -125,8 +125,21 @@ bool Board::isFiftyMoveRuleDraw() const {
     return plies > 99; 
 }
 
-bool Board::isThreefoldDraw(int threefoldHeight) const {
-    //TODO: this requires Zobrist keys to be done 
+bool Board::isThreefoldDraw() const {
+    int repetitions = 0;
+    //Look through all the moves played thus far
+    for(int i = fullmoves - 2; i >= 0; i -= 2) {
+        //we can no longer repeat if a fifty-move-rule resetting move was made
+        if(i < fullmoves - plies) {
+            break;
+        }
+        if(undoStack[i].positionHash == positionHash) {
+            if(++repetitions == 3) {
+                return true;
+            }
+        }    
+    }
+
     return false;
 }
 
@@ -154,11 +167,11 @@ Square Board::squareFromString(const std::string& string) {
     return getSquare(string[1] - '1', string[0] - 'a');
 }
 
-Board::Board() : positionHash{0}, kingAttackers{0}, castlingRooks{0}, turn{White}, plies{0}, fullmoves{0} {
-    for(int i = 0; i < 8; i++) {
+Board::Board() : positionHash{0}, kingAttackers{0}, castlingRooks{0}, turn{White}, plies{0}, fullmoves{0}, enpassantSquare{None} {
+    for(int i = 0; i < 6; i++) {
         pieces[i] = 0;
     }
-    for(int i = 0; i < 3; i++) {
+    for(int i = 0; i < 2; i++) {
         sides[i] = 0;
     }
     for(int i = 0; i < 64; i++) {
@@ -345,24 +358,101 @@ bool Board::debugIsSquareAttacked(Square square, Color side) {
     return attackedByPawns || attackedByKnights || attackedByKings || attackedByBishops || attackedByRooks;
 }
 
-void Board::setCastlingRight(Color side, bool isKingside) {
+bool Board::setCastlingRight(Color side, bool isKingside) {
     if(side == White && isKingside) {
+        if((sides[White] & pieces[Rook] & Rank1) == 0) {
+            return false;
+        }
         if(!testBit(castlingRooks, getSquare(getMsb(sides[White] & pieces[Rook] & Rank1)))) {
 	        setBit(castlingRooks, getSquare(getMsb(sides[White] & pieces[Rook] & Rank1))); 
+            return true;
         }
 	} else if(side == White && !isKingside) {
+        if((sides[White] & pieces[Rook] & Rank1) == 0) {
+            return false;
+        }
         if(!testBit(castlingRooks, getSquare(getLsb(sides[White] & pieces[Rook] & Rank1)))) {
             setBit(castlingRooks, getSquare(getLsb(sides[White] & pieces[Rook] & Rank1)));
+            return true;
         }
     } else if(isKingside) {
+        if((sides[Black] & pieces[Rook] & Rank8) == 0) {
+            return false;
+        }
         if(!testBit(castlingRooks, getSquare(getMsb(sides[Black] & pieces[Rook] & Rank8)))) {
 	        setBit(castlingRooks, getSquare(getMsb(sides[Black] & pieces[Rook] & Rank8))); 
+            return true;
         }    
     } else {
+        if((sides[Black] & pieces[Rook] & Rank8) == 0) {
+            return false;
+        }
         if(!testBit(castlingRooks, getSquare(getLsb(sides[Black] & pieces[Rook] & Rank8)))) {
             setBit(castlingRooks, getSquare(getLsb(sides[Black] & pieces[Rook] & Rank8)));
+            return true;
         }    
     }
+    return false;
+}
+
+bool Board::clearCastlingRight(Color side, bool isKingside) {
+    if(side == White && isKingside) {
+        if((sides[White] & pieces[Rook] & Rank1) == 0) {
+            return false;
+        }
+        if(testBit(castlingRooks, getSquare(getMsb(sides[White] & pieces[Rook] & Rank1)))) {
+	        clearBit(castlingRooks, getSquare(getMsb(sides[White] & pieces[Rook] & Rank1)));
+            return true; 
+        }
+	} else if(side == White && !isKingside) {
+        if((sides[White] & pieces[Rook] & Rank1) == 0) {
+            return false;
+        }
+        if(testBit(castlingRooks, getSquare(getLsb(sides[White] & pieces[Rook] & Rank1)))) {
+            clearBit(castlingRooks, getSquare(getLsb(sides[White] & pieces[Rook] & Rank1)));
+            return true;
+        }
+    } else if(isKingside) {
+        if((sides[Black] & pieces[Rook] & Rank8) == 0) {
+            return false;
+        }
+        if(testBit(castlingRooks, getSquare(getMsb(sides[Black] & pieces[Rook] & Rank8)))) {
+	        clearBit(castlingRooks, getSquare(getMsb(sides[Black] & pieces[Rook] & Rank8))); 
+            return true;
+        }    
+    } else {
+        if((sides[Black] & pieces[Rook] & Rank8) == 0) {
+            return false;
+        }
+        if(testBit(castlingRooks, getSquare(getLsb(sides[Black] & pieces[Rook] & Rank8)))) {
+            clearBit(castlingRooks, getSquare(getLsb(sides[Black] & pieces[Rook] & Rank8)));
+            return true;
+        }    
+    }
+    return false;
+}
+
+std::string Board::getCastlingRights() const {
+    std::string output;
+    Bitboard castlingRooks = sides[White] & pieces[Rook];
+    while(castlingRooks != 0) {
+        Square square = getSquare(popMsb(castlingRooks));
+        if(testBit(FileH, square)) {
+            output += "K";
+        } else if(testBit(FileA, square)) {
+            output += "Q";
+        }
+    }
+    castlingRooks = sides[Black] & pieces[Rook];
+    while(castlingRooks != 0) {
+        Square square = getSquare(popMsb(castlingRooks));
+        if(testBit(FileA, square)) {
+            output += "k";
+        } else if(testBit(FileA, square)) {
+            output += "q";
+        }
+    }
+    return output.empty() ? "-" : output;
 }
 
 void Board::setEnpassantSquare(Square square) {
@@ -397,6 +487,23 @@ void Board::clearSquare(Square square) {
         clearBit(castlingRooks, square);
     }
     //TODO: update PSQT (probably) and hashes
+}
+
+Board::BoardLegality Board::getBoardLegalityState() const {
+    if(popCnt(pieces[King]) != 2 || popCnt(pieces[King] & sides[White]) != 1 || popCnt(pieces[King] & sides[Black])) {
+        return IllegalKings;
+    }
+    if((pieces[Pawn] & Rank1) != 0 || (pieces[Pawn] & Rank8) != 0) {
+        return IllegalPawns;
+    }
+    if(enpassantSquare != None && (getRelativeRankIndexOfSquare(turn, enpassantSquare) != Six || (squares[getSquare(enpassantSquare - 8 + (turn << 4))] != WhitePawn && squares[getSquare(enpassantSquare - 8 + (turn << 4))] != BlackPawn))) {
+        return IllegalEnpassant;
+    }
+    return Legal;
+}
+
+Board Board::createEmptyBoard() {
+    return Board{};
 }
 
 Board Board::createBoardFromFEN(std::string fen) {
@@ -463,19 +570,6 @@ Board Board::createBoardFromFEN(std::string fen) {
 	    }
     }
 
-    //Create a bit mask of where the kings and rooks are
-    for(int sq = 0; sq < NumSquares; sq++) {
-	    Square s = getSquare(sq);
-        board.castleMasks[s] = ~0ull;
-	    if(board.testBit(board.castlingRooks, s)) {
-	        clearBit(board.castleMasks[sq], s);
-	    } else if(board.testBit(board.sides[White] & board.pieces[King], s)) {
-	        board.castleMasks[sq] &= ~board.sides[White];
-	    } else if(board.testBit(board.sides[Black] & board.pieces[King], s)) {
-	        board.castleMasks[sq] &= ~board.sides[Black];
-	    }
-    }
-
     //TODO: hash here probably (reset the rooks bits)
 
     fen.erase(0, fen.find(" ") + 1);
@@ -492,10 +586,25 @@ Board Board::createBoardFromFEN(std::string fen) {
     token = fen.substr(0, fen.find(" "));
     board.fullmoves = std::stoi(token);
 
-    //if ((board.pieces[King] & board.sides[board.turn]) != 0) {
-        board.kingAttackers = board.getAllKingAttackers();
-    //}
+    board.validateLegality();
     return board;
+}
+
+void Board::validateLegality() {
+    assert(getBoardLegalityState() == Legal);
+    //Create a bit mask of where the kings and rooks are
+    for(int sq = 0; sq < NumSquares; sq++) {
+	    Square s = getSquare(sq);
+        castleMasks[s] = ~0ull;
+	    if(testBit(castlingRooks, s)) {
+	        clearBit(castleMasks[sq], s);
+	    } else if(testBit(sides[White] & pieces[King], s)) {
+	        castleMasks[sq] &= ~sides[White];
+	    } else if(testBit(sides[Black] & pieces[King], s)) {
+	        castleMasks[sq] &= ~sides[Black];
+	    }
+    }
+    kingAttackers = getAllKingAttackers();
 }
 
 std::string Board::getFEN() const {
