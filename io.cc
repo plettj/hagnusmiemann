@@ -371,7 +371,7 @@ void TextInput::runProgram(IO& io, std::ostream& out) {
                                     if (fullyLegal) {
                                         Color turn = board.getTurn();
 
-                                        if (!board.countLegalMoves() || board.isDrawn(board.getTotalPlies())) { // Game is over
+                                        if (!board.countLegalMoves() || board.isDrawn()) { // Game is over
                                             if (board.isSideInCheck(turn)) { // In Check
                                                 if (turn) scores.first++;
                                                 else scores.second++;
@@ -379,7 +379,7 @@ void TextInput::runProgram(IO& io, std::ostream& out) {
                                             } else {
                                                 if (board.isInsufficientMaterialDraw()) state = GameState::InsufficientMaterial;
                                                 else if (board.isFiftyMoveRuleDraw()) state = GameState::FiftyMove;
-                                                else if (board.isThreefoldDraw(board.getTotalPlies())) state = GameState::Threefold;
+                                                else if (board.isThreefoldDraw()) state = GameState::Threefold;
                                                 else state = GameState::Stalemate;
                                             }
                                             io.display(board, state);
