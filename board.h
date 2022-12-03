@@ -125,7 +125,7 @@ public:
     ColorPiece getPieceAt(Square square) const;
     Square getKing() const;
     Color getTurn() const;
-    void setTurn(Color color);
+    void setTurn(Color turn);
 
     bool hasNonPawns(Color side) const;
     bool isDrawn(int threefoldHeight) const;
@@ -181,6 +181,7 @@ public:
      * Checks legality of last move assuming it was pseudo-legal
      */
     bool didLastMoveLeaveInCheck();
+    bool isSideInCheck(Color side);
     
     Move getLastPlayedMove();
 

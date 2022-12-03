@@ -512,7 +512,7 @@ Color Board::getTurn() const {
     return turn;
 }
 
-void Board::setTurn(Color color) {
+void Board::setTurn(Color turn) {
     this->turn = turn;
 }
 
@@ -627,6 +627,10 @@ bool Board::applyMove(Move& move) {
 bool Board::didLastMoveLeaveInCheck() {
     Square kingSquare = getSquare(getLsb(sides[flipColor(turn)] & pieces[King]));
     return isSquareAttacked(kingSquare, flipColor(turn));
+}
+
+bool Board::isSideInCheck(Color side) {
+   return isSquareAttacked(getSquare(getLsb(pieces[King] & sides[side])), side);   
 }
 
 void Board::applyLegalMove(Move& move) {
