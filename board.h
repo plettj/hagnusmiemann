@@ -20,15 +20,8 @@ typedef uint64_t Bitboard;
  */ 
 class Board {
 public:
-    /**
-    * For the purposes of the bitboard hash functions for Rooks/
-    */
-    struct HashEntry {
-        Bitboard hash;
-	    Bitboard mask;
-	    Bitboard shift;
-	    //this points to the BishopAttack/RookAttack arrays
-	    Bitboard* offset;
+    enum BoardLegality {
+        Legal = 0, IllegalKings, IllegalPawns, IllegalEnpassant
     };
    /**
     * LERF (little endian rank file) enumeration for ranks, files, squares, diagonals, et cetera
@@ -120,6 +113,8 @@ public:
      * Factory object pattern. Creates a board object from a FEN (the copy is intentional!), OPERATES UNDER THE INVARIANT THAT THE FEN IS WELL-FORMED
      */ 
     static Board createBoardFromFEN(std::string fen);
+    static Board createEmptyBoard();
+    void validateLegality();
 
     std::string getFEN() const;
     ColorPiece getPieceAt(Square square) const;
@@ -156,10 +151,11 @@ public:
     void clearSquare(Square square);
     
     void revertMostRecent();
-    /**
-     * ASSUMES THE ROOK IN QUESTION EXISTS 
-     */
-    void setCastlingRight(Color side, bool kingside);
+    
+    bool setCastlingRight(Color side, bool kingside);
+    bool clearCastlingRight(Color side, bool kingside);
+    std::string getCastlingRights() const;
+
     /**
      * ASSUMES THERE IS A PAWN IN THE CORRECT POSITION TO BE ENPASSANTED 
      */
@@ -188,6 +184,7 @@ public:
     int getPlies() const;
     int getTotalPlies() const;
     Piece getLastMovedPiece() const;
+    BoardLegality getBoardLegalityState() const;
 
     bool isSquareAttacked(Square square, Color side); // the side of the piece on the square, not the attacking team.
     /**
@@ -199,6 +196,18 @@ public:
 private:
     //For static exchange evaluation
     friend class HeuristicMoveOrderer;
+    
+    bool validationRun = false;
+    /**
+    * For the purposes of the bitboard hash functions for Rooks/Bishops
+    */
+    struct HashEntry {
+        Bitboard hash;
+	    Bitboard mask;
+	    Bitboard shift;
+	    //this points to the BishopAttack/RookAttack arrays
+	    Bitboard* offset;
+    };
     /**
      * Your friendly neighbourhood singleton of computation stuff.
      * This doesn't really do anything special versus lots of static data in the .cc file, but is more extensible
