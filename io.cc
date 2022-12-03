@@ -377,10 +377,15 @@ void TextInput::runProgram(IO& io, std::ostream& out) {
                                                 else scores.second++;
                                                 state = static_cast<GameState>(turn + 3);
                                             } else {
-                                                if (board.isInsufficientMaterialDraw()) state = GameState::InsufficientMaterial;
-                                                else if (board.isFiftyMoveRuleDraw()) state = GameState::FiftyMove;
-                                                else if (board.isThreefoldDraw()) state = GameState::Threefold;
-                                                else state = GameState::Stalemate;
+                                                if (board.isInsufficientMaterialDraw()) {
+                                                    state = GameState::InsufficientMaterial;
+                                                } else if (board.isFiftyMoveRuleDraw()) {
+                                                    state = GameState::FiftyMove;
+                                                } else if (board.isThreefoldDraw()) {
+                                                    state = GameState::Threefold;
+                                                } else {
+                                                    state = GameState::Stalemate;
+                                                }
                                             }
                                             io.display(board, state);
                                             isGameRunning = false;
@@ -434,8 +439,10 @@ void TextInput::runProgram(IO& io, std::ostream& out) {
                     // board.setCastlingRight(Color side, isKingside);     // returns true, unless it didn't do it.
                     // board.clearCastlingRight(Color side, isKingside);   // returns false.
                     // std::string board.getCastlingRights()               // returns fen string.
-                    // board.setEnpassantSquare(square);                   
+                    // board.setEnpassantSquare(square);
                     // BoardLegality board.getBoardLegalityState();        // returns legality state.
+
+                    // TODO: Implement these additional methods.
                     out << " ◌ ├╴ done                 Exits setup mode." << std::endl;
                     
                     board = Board::createBoardFromFEN("4k3/8/8/8/8/8/8/4K3 w - - 0 1");
