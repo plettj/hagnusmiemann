@@ -259,7 +259,7 @@ void TextInput::runProgram(IO& io, std::ostream& out) {
                 players.second = second == "player" ? 0 : second[8] - '0';
                 out << "╭──────────────────────────────────────" << (totalGames + 1 > 9 ? "─" : "") << "╮" << std::endl;
                 out << "│ HAGNUS MIEMANN CHESS ENGINE - Game " << totalGames + 1 << " │" << std::endl;
-                out << "├───────────────────┬──────────────────" << (totalGames + 1 > 9 ? "─" : "") << "┤" << std::endl;
+                out << "╞───────────────────┬──────────────────" << (totalGames + 1 > 9 ? "─" : "") << "┤" << std::endl;
                 out << "│ White: " << first << (players.first ? "" : "   ") << "  │ Black: " << second << (players.second ? "" : "   ") << (totalGames + 1 > 9 ? " " : "") << " │" << std::endl;
                 out << "╰───────────────────┴──────────────────" << (totalGames + 1 > 9 ? "─" : "") << "╯" << std::endl;
                 totalGames++;
@@ -432,9 +432,9 @@ void TextInput::runProgram(IO& io, std::ostream& out) {
             if (!isGameRunning) {
                 if (first == "") {
                     out << " ◌ ╭─────╴ SETUP MODE - Opened" << std::endl;
-                    out << " ◌ ├╴ + [piece] [square]   Adds a piece." << std::endl;
-                    out << " ◌ ├╴ - [square]           Removes a piece." << std::endl;
-                    out << " ◌ ├╴ = [colour]           Make it `colour`'s turn to play." << std::endl;
+                    out << " ◌ ╞╴ + [piece] [square]   Adds a piece." << std::endl;
+                    out << " ◌ ╞╴ - [square]           Removes a piece." << std::endl;
+                    out << " ◌ ╞╴ = [colour]           Make it `colour`'s turn to play." << std::endl;
                     // If we wanted to implement setting castling rights or en-passant squares, we would use:
                     // board.setCastlingRight(Color side, isKingside);     // returns true, unless it didn't do it.
                     // board.clearCastlingRight(Color side, isKingside);   // returns false.
@@ -443,7 +443,7 @@ void TextInput::runProgram(IO& io, std::ostream& out) {
                     // BoardLegality board.getBoardLegalityState();        // returns legality state.
 
                     // TODO: Implement these additional methods.
-                    out << " ◌ ├╴ done                 Exits setup mode." << std::endl;
+                    out << " ◌ ╞╴ done                 Exits setup mode." << std::endl;
                     
                     board = Board::createBoardFromFEN("4k3/8/8/8/8/8/8/4K3 w - - 0 1");
                     io.display(board, state, true);
@@ -538,47 +538,47 @@ void TextInput::runProgram(IO& io, std::ostream& out) {
             out << " ◌ │ HAGNUS MIEMANN CHESS ENGINE - Manual │" << std::endl;
             out << " ◌ ╰──────────────────────────────────────╯" << std::endl;
             out << " ◌ ╭─────╴" << std::endl;
-            out << " ◌ ├╴ exit" << std::endl;
+            out << " ◌ ╞╴ exit" << std::endl;
             out << " ◌ │         Immediately terminates the program." << std::endl;
-            out << " ◌ ├╴ game [white] [black]" << std::endl;
+            out << " ◌ ╞╴ game [white] [black]" << std::endl;
             out << " ◌ │         Starts a new game. Options are `player` and `computer[1-4]`." << std::endl;
-            out << " ◌ ├╴ help" << std::endl;
+            out << " ◌ ╞╴ help" << std::endl;
             out << " ◌ │         Opens this manual. `man` also does." << std::endl;
-            //out << " ◌ ├╴ make" << std::endl;
+            //out << " ◌ ╞╴ make" << std::endl;
             //out << " ◌ │         Captures programmers who forgot to CTRL+C!" << std::endl;
-            //out << " ◌ ├╴ ./chess" << std::endl;
+            //out << " ◌ ╞╴ ./chess" << std::endl;
             //out << " ◌ │         Captures programmers who have no short-term memory." << std::endl;
-            out << " ◌ ├╴ move" << std::endl;
+            out << " ◌ ╞╴ move" << std::endl;
             out << " ◌ │         Tells the computer to compute and play its move." << std::endl;
-            out << " ◌ ├╴ move [from] [to] [promotion?]" << std::endl;
+            out << " ◌ ╞╴ move [from] [to] [promotion?]" << std::endl;
             out << " ◌ │         Plays a move. For example: `move e1 g1` or `move g2 g1 R`." << std::endl;
-            out << " ◌ ├╴ perft [0-15]" << std::endl;
+            out << " ◌ ╞╴ perft [0-15]" << std::endl;
             out << " ◌ │         Runs a PERFT test on the current board." << std::endl;
-            out << " ◌ ├╴ print" << std::endl;
+            out << " ◌ ╞╴ print" << std::endl;
             out << " ◌ │         Displays the current game." << std::endl;
-            out << " ◌ ├╴ quit" << std::endl;
+            out << " ◌ ╞╴ quit" << std::endl;
             out << " ◌ │         Submits EOF; displays the final scores and exits the program." << std::endl;
-            out << " ◌ ├╴ resign" << std::endl;
+            out << " ◌ ╞╴ resign" << std::endl;
             out << " ◌ │         Resigns the current game." << std::endl;
-            out << " ◌ ├╴ scores" << std::endl;
+            out << " ◌ ╞╴ scores" << std::endl;
             out << " ◌ │         Displays the current scores of White and Black players." << std::endl;
-            out << " ◌ ├╴ settings" << std::endl;
+            out << " ◌ ╞╴ settings" << std::endl;
             out << " ◌ │         Displays the current settings." << std::endl;
-            out << " ◌ ├╴ setup [FEN]" << std::endl;
+            out << " ◌ ╞╴ setup [FEN]" << std::endl;
             out << " ◌ │         Initializes a game with a well-formed FEN." << std::endl;
-            out << " ◌ ├╴ setup" << std::endl;
+            out << " ◌ ╞╴ setup" << std::endl;
             out << " ◌ ╰──╮      Enters setup mode, which has the following methods:" << std::endl;
-            out << " ◌    ├╴ + [piece] [square]" << std::endl;
+            out << " ◌    ╞╴ + [piece] [square]" << std::endl;
             out << " ◌    │          Places `piece` at square `square`, on top of whatever is there." << std::endl;
-            out << " ◌    ├╴ - [square]" << std::endl;
+            out << " ◌    ╞╴ - [square]" << std::endl;
             out << " ◌    │          Removes any piece at square `square`." << std::endl;
-            out << " ◌    ├╴ = [colour]" << std::endl;
+            out << " ◌    ╞╴ = [colour]" << std::endl;
             out << " ◌    │          Makes it `colour`'s turn to play." << std::endl;
-            out << " ◌    ├╴ done" << std::endl;
+            out << " ◌    ╞╴ done" << std::endl;
             out << " ◌ ╭──╯          Exits setup mode, if restrictions are met." << std::endl;
-            out << " ◌ ├╴ toggle [0-3]" << std::endl;
+            out << " ◌ ╞╴ toggle [0-3]" << std::endl;
             out << " ◌ │         Toggles the numbered setting." << std::endl;
-            out << " ◌ ├╴ undo" << std::endl;
+            out << " ◌ ╞╴ undo" << std::endl;
             out << " ◌ │         Undoes the previous move in the current game." << std::endl;
             out << " ◌ ╰─────╴" << std::endl;
         } else if (command == "undo") {
