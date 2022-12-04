@@ -3,7 +3,6 @@
 
 #include "board.h"
 #include "constants.h"
-#include <memory>
 
 typedef int CentipawnScore;
 
@@ -23,7 +22,7 @@ class TrivialEvaluator : public Evaluator {
     }
 };
 
-class evalLevelThree : public Evaluator {
+class EvalLevelThree : public Evaluator {
 public:
     CentipawnScore staticEvaluate(const Board& board) override;
     std::unique_ptr<Evaluator> clone() const override {

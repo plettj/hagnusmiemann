@@ -1,6 +1,7 @@
 #include "board.h"
 #include "move.h"
 #include "zobrist.h"
+#include "evaluator.h"
 #include <algorithm>
 #include <map>
 #include <chrono>
@@ -574,6 +575,22 @@ Board Board::createBoardFromFEN(std::string fen) {
 	    }
     }
 
+    //Create a bit mask of where the kings and rooks are
+    for(int sq = 0; sq < NumSquares; sq++) {
+	    Square s = getSquare(sq);
+        board.castleMasks[s] = ~0ull;
+	    if(board.testBit(board.castlingRooks, s)) {
+	        clearBit(board.castleMasks[sq], s);
+	    } else if(board.testBit(board.sides[White] & board.pieces[King], s)) {
+	        board.castleMasks[sq] &= ~board.sides[White];
+	    } else if(board.testBit(board.sides[Black] & board.pieces[King], s)) {
+	        board.castleMasks[sq] &= ~board.sides[Black];
+	    }
+    }
+
+    //init stateval
+    board.initMaterialEval();
+
     //TODO: hash here probably (reset the rooks bits)
 
     fen.erase(0, fen.find(" ") + 1);
@@ -730,6 +747,27 @@ void Board::PrecomputedBinary::populateHashTable(HashEntry* table, Square square
     }
 }
 
+const CentipawnScore Board::evaluateMaterial() {
+    return currentEval;
+};
+
+const void Board::evalAddPiece(ColorPiece piece, Square location) {
+    currentEval += psqt[piece][location];
+}
+
+const void Board::evalRemovePiece(ColorPiece piece, Square location) {
+    currentEval -= psqt[piece][location];
+}
+
+const void Board::initMaterialEval() {
+    currentEval = 0;
+
+    for (int i = 0; i <= NumSquares; ++i) {
+        currentEval += psqt[squares[i]][i];
+    }
+}
+
+
 bool Board::applyMove(Move& move) {
     if(move.isMoveNone()) {
         return false;
@@ -829,15 +867,21 @@ void Board::applyNormalMoveWithUndo(Move& move, UndoData& undo) {
     }
     pieces[getPieceType(from)] ^= (1ull << move.getFrom()) ^ (1ull << move.getTo());
     sides[turn] ^= (1ull << move.getFrom()) ^ (1ull << move.getTo());
+
     //zobrist hash update
     ZobristNums::changePiece(undo.positionHash, getColorOfPiece(from), getPieceType(from), move.getFrom());
     ZobristNums::changePiece(undo.positionHash, getColorOfPiece(from), getPieceType(from), move.getTo());
+
+    // material eval update
+    evalAddPiece(from, move.getFrom());
+    evalRemovePiece(from, move.getFrom());
 
     //if we captured
     if(to != Empty) {
         pieces[getPieceType(to)] ^= (1ull << move.getTo());
         sides[flipColor(turn)] ^= (1ull << move.getTo());
         ZobristNums::changePiece(undo.positionHash, getColorOfPiece(to), getPieceType(to), move.getTo());
+        evalRemovePiece(to, move.getTo());
     }
 
     squares[move.getFrom()] = Empty;
@@ -878,6 +922,12 @@ void Board::applyCastlingMoveWithUndo(Move& move, Board::UndoData& undo) {
     ZobristNums::changePiece(undo.positionHash, getColorOfPiece(squares[move.getFrom()]), King, kingFrom);
     ZobristNums::changePiece(undo.positionHash, getColorOfPiece(squares[move.getFrom()]), Rook, rookTo);
     ZobristNums::changePiece(undo.positionHash, getColorOfPiece(squares[move.getFrom()]), Rook, rookFrom);
+
+    //material eval update
+    evalAddPiece(squares[kingFrom], kingTo);
+    evalRemovePiece(squares[kingFrom], kingFrom);
+    evalAddPiece(squares[rookFrom], rookTo);
+    evalRemovePiece(squares[rookFrom], rookFrom);
     
     pieces[King] ^= (1ull << kingFrom) ^ (1ull << kingTo);
     sides[turn] ^= (1ull << kingFrom) ^ (1ull << kingTo);
@@ -905,6 +955,11 @@ void Board::applyEnpassantMoveWithUndo(Move& move, Board::UndoData& undo) {
     ZobristNums::changePiece(undo.positionHash, getColorOfPiece(squares[move.getFrom()]), Pawn, move.getTo());
     ZobristNums::changePiece(undo.positionHash, getColorOfPiece(squares[move.getFrom()]), Pawn, move.getFrom());
     ZobristNums::changePiece(undo.positionHash, flipColor(getColorOfPiece(squares[move.getFrom()])), Pawn, capturedSquare);
+
+    //materialEval update
+    evalAddPiece(squares[move.getFrom()], move.getTo());
+    evalRemovePiece(squares[move.getFrom()], move.getFrom());
+    evalAddPiece(squares[capturedSquare], capturedSquare);
     
     //en passant is a capture, so reset the fifty move rule
     plies = 0;
@@ -928,6 +983,10 @@ void Board::applyPromotionMoveWithUndo(Move& move, Board::UndoData& undo) {
     ZobristNums::changePiece(undo.positionHash, getColorOfPiece(promotedPiece), Pawn, move.getFrom());
     ZobristNums::changePiece(undo.positionHash, getColorOfPiece(promotedPiece), move.getPromoType(), move.getTo());
 
+    //material eval
+    evalAddPiece(promotedPiece, move.getTo());
+    evalRemovePiece(squares[move.getFrom()], move.getFrom());
+
     //promotion resets the fifty move rule
     plies = 0;
     pieces[Pawn] ^= (1ull << move.getFrom());
@@ -935,9 +994,10 @@ void Board::applyPromotionMoveWithUndo(Move& move, Board::UndoData& undo) {
     sides[turn] ^= (1ull << move.getFrom()) ^ (1ull << move.getTo());
 
     if(capturedPiece != Empty) {
+        ZobristNums::changePiece(undo.positionHash, getColorOfPiece(capturedPiece), getPieceType(capturedPiece), move.getTo());
+        evalRemovePiece(squares[move.getFrom()], move.getFrom());
         pieces[getPieceType(capturedPiece)] ^= (1ull << move.getTo());
         sides[getColorOfPiece(capturedPiece)] ^= (1ull << move.getTo());
-        ZobristNums::changePiece(undo.positionHash, getColorOfPiece(capturedPiece), getPieceType(capturedPiece), move.getTo());
     }
 
     squares[move.getFrom()] = Empty;

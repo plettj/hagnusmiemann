@@ -122,6 +122,11 @@ public:
     Color getTurn() const;
     void setTurn(Color turn);
 
+    const CentipawnScore evaluateMaterial();
+    const void evalAddPiece(ColorPiece piece, Square location);
+    const void evalRemovePiece(ColorPiece piece, Square location);
+    const void initMaterialEval();
+
     bool hasNonPawns(Color side) const;
     bool isDrawn() const;
     bool isFiftyMoveRuleDraw() const;
@@ -321,6 +326,9 @@ private:
     int plies;
     int fullmoves;
     Square enpassantSquare;
+
+    // for stateval
+    CentipawnScore currentEval;
 
 
     unsigned long long perft(std::map<std::string, int>& divideTree, int depth, int& enpassant, int& promotions, int& castles);
