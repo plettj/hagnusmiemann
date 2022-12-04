@@ -4,8 +4,9 @@
 #include "board.h"
 #include "move.h"
 #include "evaluator.h"
-#include <map>
+#include <unordered_map>
 #include <random>
+#include <memory>
 
 typedef int HeuristicScore;
 
@@ -17,11 +18,14 @@ typedef int HeuristicScore;
  */
 class MoveOrderer {
 public:    
-    MoveOrderer(Board& board);
+    MoveOrderer();
+    virtual void seedMoveOrderer(Board& board, bool noisyOnly) = 0;
     virtual Move pickNextMove(bool noisyOnly) = 0;
-    virtual ~MoveOrderer() = default;
+    virtual ~MoveOrderer() {}
+    virtual std::unique_ptr<MoveOrderer> clone() const = 0;
 protected:
-    Board& board;
+    Board* board = nullptr;
+    bool tacticalSearch = false;
     std::vector<Move> moveList;
     int size = 0;
 };
@@ -31,10 +35,14 @@ protected:
  */
 class RandomMoveOrderer : public MoveOrderer {
 public:    
-    RandomMoveOrderer(Board& board);
-    RandomMoveOrderer(const RandomMoveOrderer& other) = delete;
+    RandomMoveOrderer();
+    RandomMoveOrderer(const RandomMoveOrderer& other) = default;
+    void seedMoveOrderer(Board& board, bool noisyOnly) override;
     Move pickNextMove(bool noisyOnly) override;
+    std::unique_ptr<MoveOrderer> clone() const override;
+
 private:
+    int size = 0;
     std::mt19937 rng;
 };
 
@@ -43,9 +51,8 @@ private:
  */
 class HeuristicMoveOrderer : public MoveOrderer {
 public:    
-    HeuristicMoveOrderer(Board& board);
-    HeuristicMoveOrderer(const HeuristicMoveOrderer& other) = delete;
-
+    HeuristicMoveOrderer();
+    HeuristicMoveOrderer(const HeuristicMoveOrderer& other) = default;
     /**
      * Static exchange evaluation looks at the possible trades on a square
      * and determines if one side can clearly materially win it without having to actually
@@ -54,13 +61,15 @@ public:
      * Returns whether the side that plays the move wins the trade or not.
      */
     bool staticExchangeEvaluation(const Move& move, CentipawnScore margin);
+    void setSeeMarginInOrdering(CentipawnScore margin);
 
     void updateQuietHeuristics(std::vector<Move>& moveList, int depth);
     void updateNoisyHeuristics(std::vector<Move>& moveList, Move& best, int depth);
-    void seedMoveOrderer(bool tacticalSearch, CentipawnScore seeMargin);
+    void seedMoveOrderer(Board& board, bool tacticalSearch) final override;
     Move pickNextMove(bool noisyOnly) final override;
+    std::unique_ptr<MoveOrderer> clone() const override;
 private:
-    std::map<Move, HeuristicScore> currentMoveScores;
+    std::unordered_map<Move, HeuristicScore> currentMoveScores;
     enum Stage {
         GenerateNoisy = 0, GoodNoisy, KillerOne, KillerTwo, Counter, GenerateQuiet, Quiet, BadNoisy
     };
@@ -73,7 +82,6 @@ private:
     CentipawnScore currentSEEMargin;
     int noisySize;
     int quietSize;
-    bool tacticalSearch = false;
     //TODO: Transposition table
 
 
@@ -114,14 +122,8 @@ private:
      * which is a heuristic that says capturing things worth a lot with pieces not worth a lot is a good idea.
      */
     TripleArray<HeuristicScore, NumPieces, NumSquares, NumPieces> captureHistory;
-    static constexpr std::array<HeuristicScore, NumPieces> mvvLvaScores = {0, 3000, 3500, 5000, 10000, 11000};
 
     //This normalizes the scores to be centered approximately around 0
     static const HeuristicScore normalizationConstant = 66666;
-
-    /**
-     * Static Exchange Evaluation scores for each piece
-     */
-    static constexpr std::array<CentipawnScore, NumPieces> seeScores = {100, 400, 400, 700, 1400, 0};
 };
 #endif
