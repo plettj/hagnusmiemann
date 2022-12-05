@@ -17,6 +17,7 @@ void IO::makeGraphicOutput(int size) { // size = 600
     outputs.emplace_back(std::make_unique<GraphicalOutput>(input.get(), size));
 }
 void IO::closeGraphicOutput() {
+    input->detach(outputs.back().get());
     outputs.back().reset();
     outputs.pop_back();
 }
