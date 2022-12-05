@@ -3,6 +3,7 @@
 #include "io.h"
 #include "constants.h"
 #include "difficultylevel.h"
+#include "easydifficulty.h"
 #include <iostream>
 #include <sstream>
 #include <regex>
@@ -11,6 +12,19 @@
 IO::IO(std::istream& in, std::ostream& out): input{std::make_unique<TextInput>(in)}, out{out} {}
 void IO::makeTextOutput(std::ostream& out) {
     outputs.emplace_back(std::make_unique<TextOutput>(input.get(), out));
+}
+void IO::makeGraphicOutput(int size) { // size = 600
+    outputs.emplace_back(std::make_unique<GraphicalOutput>(input.get(), size));
+}
+void IO::closeGraphicOutput() {
+    outputs.back().reset();
+    outputs.pop_back();
+}
+bool IO::hasGraphicsOpen() {
+    return outputs.size() > 1;
+}
+void IO::initialize(bool setup, std::string white, std::string black, int game) {
+    outputs.back().get()->initialize(setup, white, black, game);
 }
 void IO::toggleSetting(int setting) {
     switch (setting) {
@@ -26,9 +40,6 @@ void IO::toggleSetting(int setting) {
         case 3: 
             wideBoard = !wideBoard;
             break;
-        case 4:
-            autoMove = !autoMove;
-            break;
     }
 }
 bool IO::getSetting(int setting) {
@@ -41,14 +52,9 @@ bool IO::getSetting(int setting) {
             return boardPerspective;
         case 3: 
             return wideBoard;
-        case 4:
-            return autoMove;
         default:
             return false;
     }
-}
-void IO::makeGraphicOutput() {
-    // TODO
 }
 void IO::display(Board& board, GameState state, bool setup, bool firstSetup) {
     input->notifyOutputs(board, std::array<bool, 4>{basicPieces, showCheckers, boardPerspective, wideBoard}, state, setup, firstSetup);
@@ -98,7 +104,7 @@ void TextOutput::display(Board& board, std::array<bool, 4> settings, GameState s
             break;
         case InsufficientMaterial:
             gameMessage[0] = "Game drawn by     │";
-            gameMessage[1] = "scant material.   │";
+            gameMessage[1] = "insuff. material. │";
             break;
         default:
             break;
@@ -172,16 +178,48 @@ void TextOutput::display(Board& board, std::array<bool, 4> settings, GameState s
         int realFile = (blackPerspective) ? 7 - file : file;
         out << " " << ((settings[3]) ? " " : "") << static_cast<char>(realFile + 97);
     }
-
     out << std::endl;
-
 }
 
-GraphicalOutput::GraphicalOutput(Input* toFollow): Output{toFollow} {
+GraphicalOutput::GraphicalOutput(Input* toFollow, int size): Output{toFollow}, window{std::make_unique<Xwindow>(size, size * 5 / 3)}, size{size} {
     toFollow->attach(this);
+}
+void GraphicalOutput::initialize(bool setup, std::string white, std::string black, int game) {
+    // TODO
+    std::cout << "setup mode: " << setup << std::endl;
+    std::cout << "white:      " << white << std::endl;
+    std::cout << "black:      " << black << std::endl;
+    std::cout << "game:       " << game << std::endl;
+
+    // White=0, Black, Red, Green, Blue, Cyan, Yellow, Magenta, Orange, Brown
+
+    int width = window->getWidth();
+    int height = window->getHeight();
+
+    // BACKGROUND
+    window->fillRectangle(0, 0, width, height, 3);
+    // HEADER
+    window->fillRectangle(0, 0, width, height / 8, 2);
+    if (setup) {
+        window->drawString(width / 24, height / 16, "SETUP MODE");
+    } else {
+        window->drawString(width / 24, height / 16, "White: " + white + "   -   Black: " + black + "   -   Game: " + static_cast<char>(game + 48));
+    }
+
+    // BOARD
+    for (int i = 0; i < 8; i++) {
+        for (int j = 0; j < 8; j++) {
+            if ((i + j + 1) % 2) {
+                window->fillRectangle(width / 24 + height / 10 * i, height / 7 + height / 10 * j, height / 10, height / 10, 0);
+            }
+        }
+    }
+    
 }
 void GraphicalOutput::display(Board& board, std::array<bool, 4> settings, GameState state, bool setup, bool firstSetup) {
     // TODO
+    
+
 }
 
 void TextInput::attach(Output* output) {
@@ -571,11 +609,9 @@ void TextInput::runProgram(IO& io, std::ostream& out) {
 
     std::pair<double, double> scores = {0, 0}; // {white, black}
     std::pair<int, int> players = {0, 0}; // 0: player.   1-4: computer[1-4]
-    //DifficultyLevel* currCompPlayer;
+    std::pair<std::unique_ptr<DifficultyLevel>, std::unique_ptr<DifficultyLevel>> compPlayers;
 
     bool isGameRunning = false;
-
-    bool isGraphicsOpen = false;
 
     bool isSetup = false;
 
@@ -583,7 +619,7 @@ void TextInput::runProgram(IO& io, std::ostream& out) {
 
     int totalGames = 0;
 
-    int storyProgression = -1;
+    int storyProgression = 0;
 
     GameState state = Neutral;
 
@@ -631,12 +667,48 @@ void TextInput::runProgram(IO& io, std::ostream& out) {
                 players.second = second == "player" ? 0 : second[8] - '0';
                 out << "╭──────────────────────────────────────" << (totalGames + 1 > 9 ? "─" : "") << "╮" << std::endl;
                 out << "│ HAGNUS MIEMANN CHESS ENGINE - Game " << totalGames + 1 << " │" << std::endl;
-                out << "╞───────────────────┬──────────────────" << (totalGames + 1 > 9 ? "─" : "") << "┤" << std::endl;
+                out << "├───────────────────┬──────────────────" << (totalGames + 1 > 9 ? "─" : "") << "┤" << std::endl;
                 out << "│ White: " << first << (players.first ? "" : "   ") << "  │ Black: " << second << (players.second ? "" : "   ") << (totalGames + 1 > 9 ? " " : "") << " │" << std::endl;
                 out << "╰───────────────────┴──────────────────" << (totalGames + 1 > 9 ? "─" : "") << "╯" << std::endl;
                 totalGames++;
                 isGameRunning = true;
                 state = GameState::Neutral;
+                if (first != "player") {
+                    switch (first[8]) {
+                        case '1':
+                            compPlayers.first = std::make_unique<LevelOne>();
+                            break;
+                        case '2':
+                            compPlayers.first = std::make_unique<LevelTwo>();
+                            break;
+                        case '3':
+                            // TODO
+                            compPlayers.first = std::make_unique<LevelTwo>();
+                            break;
+                        default: // '4'
+                            // TODO
+                            compPlayers.first = std::make_unique<LevelTwo>();
+                            break;
+                    }
+                }
+                if (second != "player") {
+                    switch (second[8]) {
+                        case '1':
+                            compPlayers.second = std::make_unique<LevelOne>();
+                            break;
+                        case '2':
+                            compPlayers.second = std::make_unique<LevelTwo>();
+                            break;
+                        case '3':
+                            // TODO
+                            compPlayers.second = std::make_unique<LevelTwo>();
+                            break;
+                        default: // '4'
+                            // TODO
+                            compPlayers.second = std::make_unique<LevelTwo>();
+                            break;
+                    }
+                }
                 io.display(board, state);
             } else if (!isGameRunning) {
                 if (second == "") {
@@ -672,14 +744,41 @@ void TextInput::runProgram(IO& io, std::ostream& out) {
             std::string prom = "";
             lineStream >> prom;
 
+            Color turn = board.getTurn();
+
             if (isGameRunning) {
-                if (first == "") { // Command `move` with no parameters. Do computer move!
-                    if ((players.first && !board.getTurn()) || (players.second && board.getTurn())) {
+                if (first == "") { // Do computer move!
+                    if ((players.first && !turn) || (players.second && turn)) {
+                        Move move = (turn ? compPlayers.second : compPlayers.first).get()->getMove(board);
 
-                        // TODO: code computer move functionality with Alex!
+                        board.applyMove(move);
 
-                        out << " ◌ We haven't implemented computer move functionality yet." << std::endl;
-
+                        if (!board.countLegalMoves() || board.isDrawn()) { // Game is over
+                            if (board.isSideInCheck(turn)) { // In Check
+                                if (turn) scores.first++;
+                                else scores.second++;
+                                state = static_cast<GameState>(turn + 3);
+                            } else {
+                                if (board.isInsufficientMaterialDraw()) {
+                                    state = GameState::InsufficientMaterial;
+                                } else if (board.isFiftyMoveRuleDraw()) {
+                                    state = GameState::FiftyMove;
+                                } else if (board.isThreefoldDraw()) {
+                                    state = GameState::Threefold;
+                                } else {
+                                    state = GameState::Stalemate;
+                                }
+                                scores.first += 0.5;
+                                scores.second += 0.5;
+                            }
+                            io.display(board, state);
+                            isGameRunning = false;
+                            state = GameState::Neutral;
+                            board = Board::createBoardFromFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
+                            board.validateLegality();
+                        } else {
+                            io.display(board, state);
+                        }
                     } else {
                         out << " ◌ It's a player's turn. Specify the move." << std::endl;
                         out << " ◌ Usage:  move [from] [to] [promotion?]" << std::endl;
@@ -760,6 +859,8 @@ void TextInput::runProgram(IO& io, std::ostream& out) {
                                                 } else {
                                                     state = GameState::Stalemate;
                                                 }
+                                                scores.first += 0.5;
+                                                scores.second += 0.5;
                                             }
                                             io.display(board, state);
                                             isGameRunning = false;
@@ -1024,10 +1125,10 @@ void TextInput::runProgram(IO& io, std::ostream& out) {
             out << " ◌ │         Immediately terminates the program." << std::endl;
             out << " ◌ ╞╴ game [white] [black]" << std::endl;
             out << " ◌ │         Starts a new game. Options are `player` and `computer[1-4]`." << std::endl;
-            out << " ◌ ╞╴ graphics start" << std::endl;
-            out << " ◌ │         Opens a graphical observer on the input." << std::endl;
+            out << " ◌ ╞╴ graphics [size]" << std::endl;
+            out << " ◌ │         Opens a graphical display of width `size`." << std::endl;
             out << " ◌ ╞╴ graphics" << std::endl;
-            out << " ◌ │         Closes a graphical observer." << std::endl;
+            out << " ◌ │         Closes the graphical observer." << std::endl;
             out << " ◌ ╞╴ help" << std::endl;
             out << " ◌ │         Opens this manual." << std::endl;
             //out << " ◌ ╞╴ make" << std::endl;
@@ -1047,7 +1148,7 @@ void TextInput::runProgram(IO& io, std::ostream& out) {
             out << " ◌ ╞╴ scores" << std::endl;
             out << " ◌ │         Displays the current scores of White and Black players." << std::endl;
             out << " ◌ ╞╴ secret" << std::endl;
-            out << " ◌ │         Actually just does nothing." << std::endl;
+            out << " ◌ │         Literally just doesn't do anything." << std::endl;
             out << " ◌ ╞╴ settings" << std::endl;
             out << " ◌ │         Displays the current settings." << std::endl;
             out << " ◌ ╞╴ setup [FEN]" << std::endl;
@@ -1119,25 +1220,31 @@ void TextInput::runProgram(IO& io, std::ostream& out) {
                 out << " ◌ Usage:  perft [0-15]" << std::endl;
             }
         } else if (command == "graphics") {
-            std::string first = "";
+            int first = -1;
             lineStream >> first;
 
-            if (first != "") {
-                if (first != "start") {
-                    out << " ◌ Usage:  graphics [no parameters]" << std::endl;
-                    out << " ◌         graphics start" << std::endl;
-                } else {
-                    if (!isGraphicsOpen) {
-                        // TODO: open the grapics window
-                    } else {
-                        out << " ◌ A graphics window is already open. Type `graphics` to close it." << std::endl;
-                    }
-                }
-            } else if (isGraphicsOpen) {
-                // TODO: close the graphics window
+            bool isGraphicsOpen = io.hasGraphicsOpen();
 
+            if (first < 100 || first > 1000) {
+                if (command == currLine) {
+                    if (isGraphicsOpen) {
+                        io.closeGraphicOutput();
+                        out << " ◌ Graphics window closed." << std::endl;
+                    } else {
+                        out << " ◌ No graphics window is open. Type `graphics [100-1000]` to open one." << std::endl;
+                    }
+                } else {
+                    out << " ◌ Usage:  graphics [100-1000]" << std::endl;
+                    out << " ◌         graphics [no parameters]" << std::endl;
+                }
             } else {
-                out << " ◌ No graphics window is open. Type `graphics start` to open one." << std::endl;
+                if (!isGraphicsOpen) {
+                    io.makeGraphicOutput(first);
+                    io.initialize(true, "", "", totalGames);
+                    out << " ◌ Graphics window opened." << std::endl;
+                } else {
+                    out << " ◌ A graphics window is already open. Type `graphics` to close it." << std::endl;
+                }
             }
         } else if (command == "make" || command == "valgrind" || command == "gdb" || command == "./runSuite") {
             out << " ◌ You forgot to CTRL+C, you dingbat." << std::endl;

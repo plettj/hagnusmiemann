@@ -2,6 +2,7 @@
 #define _IO_H
 #include "board.h"
 #include "move.h"
+#include "window.h"
 #include <iostream>
 #include <memory>
 
@@ -10,7 +11,7 @@ class Output;
 class TextInput;
 
 /**
- * IO is a meta-object, to hold the Displays [observers] and
+ * IO is a meta-object, to hold the Outputs [observers] and
  * the singular Input [subject], that follow the Observer pattern
  */
 class IO {
@@ -26,7 +27,10 @@ class IO {
 public:
     IO(std::istream& in, std::ostream& out);
     void makeTextOutput(std::ostream& out);
-    void makeGraphicOutput();
+    void makeGraphicOutput(int size = 600);
+    void closeGraphicOutput(); // Closes the most recently opened output.
+    bool hasGraphicsOpen();
+    void initialize(bool setup, std::string white, std::string black, int game);
     void display(Board& board, GameState state, bool setup = false, bool firstSetup = false);
     void toggleSetting(int setting);
     bool getSetting(int setting);
@@ -39,25 +43,32 @@ protected:
     Input* toFollow;
 public:
     Output(Input* toFollow): toFollow{toFollow} {};
+    virtual void initialize(bool setup, std::string white, std::string black, int game) = 0;
     virtual void display(Board& board, std::array<bool, 4> settings, GameState state, bool setup, bool firstSetup) = 0; // notify()
+    virtual ~Output() = default;
 };
 
 // Concrete Observer #1
 class TextOutput: public Output {
     std::ostream& out;
-    // Translate our piece integers into display characters:
+    /**
+     * Translate our piece integers into display characters.
+     * */
     const std::array<char, 12> PieceChar{'p', 'P', 'n', 'N', 'b', 'B', 'r', 'R', 'q', 'Q', 'k', 'K'};
     const std::array<std::string, 12> PieceImage{"♟", "♙", "♞", "♘", "♝", "♗", "♜", "♖", "♛", "♕", "♚", "♔"};
 public:
     TextOutput(Input* toFollow, std::ostream& out);
+    void initialize(bool setup, std::string white, std::string black, int game) override {};
     void display(Board& board, std::array<bool, 4> settings, GameState state, bool setup, bool firstSetup) override;
 };
 
 // Concrete Observer #2
 class GraphicalOutput: public Output {
-
+    std::unique_ptr<Xwindow> window;
+    int size;
 public:
-    GraphicalOutput(Input* toFollow);
+    GraphicalOutput(Input* toFollow, int size);
+    void initialize(bool setup, std::string white, std::string black, int game) override;
     void display(Board& board, std::array<bool, 4> settings, GameState state, bool setup, bool firstSetup) override;
 };
 

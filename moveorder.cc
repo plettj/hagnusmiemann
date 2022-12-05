@@ -19,6 +19,7 @@ MoveOrderer::MoveOrderer() {
 RandomMoveOrderer::RandomMoveOrderer() : MoveOrderer{}, rng{100000000} {}
 
 void RandomMoveOrderer::seedMoveOrderer(Board& board, bool noisyOnly) {
+    moveList.clear();
     this->board = &board;
     this->tacticalSearch = noisyOnly;
     if(noisyOnly) {
