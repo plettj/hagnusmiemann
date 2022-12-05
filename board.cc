@@ -301,7 +301,7 @@ Bitboard Board::getPawnEnpassantCaptures(Bitboard pawnBoard, Square enpassantSqu
     return (enpassantSquare == None) ? 0 : PrecomputedBinary::getBinary().getPawnAttacksFromSquare(enpassantSquare, flipColor(side)) & pawnBoard;
 }
 
-Bitboard Board::getAllSquareAttackers(Bitboard occupiedBoard, Square square) {
+Bitboard Board::getAllSquareAttackers(Bitboard occupiedBoard, Square square) const {
     return (PrecomputedBinary::getBinary().getPawnAttacksFromSquare(square, White) & sides[Black] & pieces[Pawn])
 	   | (PrecomputedBinary::getBinary().getPawnAttacksFromSquare(square, Black) & sides[White] & pieces[Pawn])
 	   | (PrecomputedBinary::getBinary().getKnightAttacksFromSquare(square) & pieces[Knight])
@@ -493,10 +493,14 @@ Board::BoardLegality Board::getBoardLegalityState() const {
     if(popCnt(pieces[King]) != 2 || popCnt(pieces[King] & sides[White]) != 1 || popCnt(pieces[King] & sides[Black]) != 1) {
         return IllegalKings;
     }
+    Bitboard kingAttacks = getAllSquareAttackers(sides[White] | sides[Black], getSquare(getLsb(pieces[King] & sides[flipColor(turn)]))) & sides[turn];
+    if(kingAttacks != 0) {
+        return IllegalKingPosition;
+    }
     if((pieces[Pawn] & Rank1) != 0 || (pieces[Pawn] & Rank8) != 0) {
         return IllegalPawns;
     }
-    if(enpassantSquare != None && (getRelativeRankIndexOfSquare(turn, enpassantSquare) != Six || (squares[getSquare(enpassantSquare - 8 + (turn << 4))] != WhitePawn && squares[getSquare(enpassantSquare - 8 + (turn << 4))] != BlackPawn))) {
+    if(enpassantSquare != None && (getRelativeRankIndexOfSquare(turn, enpassantSquare) != Five || (squares[getSquare(enpassantSquare - 8 + (turn << 4))] != WhitePawn && squares[getSquare(enpassantSquare - 8 + (turn << 4))] != BlackPawn))) {
         return IllegalEnpassant;
     }
     return Legal;
@@ -586,7 +590,6 @@ Board Board::createBoardFromFEN(std::string fen) {
     token = fen.substr(0, fen.find(" "));
     board.fullmoves = std::stoi(token);
 
-    board.validateLegality();
     return board;
 }
 
@@ -617,6 +620,9 @@ ColorPiece Board::getPieceAt(Square square) const {
 }
 
 Square Board::getKing() const {
+    if((pieces[King] & sides[turn]) == 0) {
+        return None;
+    }
     return getSquare(getLsb(pieces[King] & sides[turn]));
 }
 Color Board::getTurn() const {
@@ -965,9 +971,6 @@ void Board::revertMove(UndoData& undo) {
         case Move::MoveType::Normal: {
             if(squares[move.getTo()] == Empty) {
                 std::cout << move.toString() << std::endl;
-                debugPrintBitboard(sides[flipColor(turn)]);
-                debugPrintBitboard(sides[turn]);
-                debugPrintBitboard(pieces[Pawn]);
                 std::cout << enpassantSquare << std::endl;
             }
             Piece fromType = getPieceType(squares[move.getTo()]);

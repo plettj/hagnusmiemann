@@ -202,6 +202,25 @@ void TextInput::detach(Output* output) {
 void TextInput::notifyOutputs(Board& board, std::array<bool, 4> settings, GameState state, bool setup) {
     for (auto out : outputs) out->display(board, settings, state, setup);
 }
+/**
+ * Helper function for the setting outputter in the runProgram method.
+ */
+void printSetting(std::ostream& out, int setting, bool currValue) {
+    switch (setting) {
+        case 0:
+            out << " ◌ 0 - ASCII pieces        " << (!currValue ? "ON" : "OFF") << std::endl;
+            break;
+        case 1:
+            out << " ◌ 1 - Checkerboard        " << (currValue ? "ON" : "OFF") << std::endl;
+            break;
+        case 2:
+            out << " ◌ 2 - Flip perspective    " << (currValue ? "ON" : "OFF") << std::endl;
+            break;
+        case 3:
+            out << " ◌ 3 - Wide display        " << (currValue ? "ON" : "OFF") << std::endl;
+            break;
+    };
+}
 void TextInput::runProgram(IO& io, std::ostream& out) {
 
     io.makeTextOutput(out); // This is a required part of our input interface.
@@ -219,6 +238,7 @@ void TextInput::runProgram(IO& io, std::ostream& out) {
     std::string currLine;
 
     Board board = Board::createBoardFromFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
+    board.validateLegality();
     
     out << std::endl;
     out << "  ╭────────────────────────────────────────────────────────────────────────────╮" << std::endl;
@@ -289,6 +309,7 @@ void TextInput::runProgram(IO& io, std::ostream& out) {
                     isGameRunning = false;
                     state = GameState::Neutral;
                     board = Board::createBoardFromFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
+                    board.validateLegality();
                 }
             }
         } else if (command == "move") {
@@ -304,6 +325,7 @@ void TextInput::runProgram(IO& io, std::ostream& out) {
                     if ((players.first && !board.getTurn()) || (players.second && board.getTurn())) {
 
                         // TODO: code computer move functionality with Alex!
+                        
                         out << " ◌ We haven't implemented computer move functionality yet." << std::endl;
 
                     } else {
@@ -391,6 +413,7 @@ void TextInput::runProgram(IO& io, std::ostream& out) {
                                             isGameRunning = false;
                                             state = GameState::Neutral;
                                             board = Board::createBoardFromFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
+                                            board.validateLegality();
                                         } else {
                                             io.display(board, state);
                                         }
@@ -434,18 +457,13 @@ void TextInput::runProgram(IO& io, std::ostream& out) {
                     out << " ◌ ╭─────╴ SETUP MODE - Opened" << std::endl;
                     out << " ◌ ╞╴ + [piece] [square]   Adds a piece." << std::endl;
                     out << " ◌ ╞╴ - [square]           Removes a piece." << std::endl;
-                    out << " ◌ ╞╴ = [colour]           Make it `colour`'s turn to play." << std::endl;
-                    // If we wanted to implement setting castling rights or en-passant squares, we would use:
-                    // board.setCastlingRight(Color side, isKingside);     // returns true, unless it didn't do it.
-                    // board.clearCastlingRight(Color side, isKingside);   // returns false.
-                    // std::string board.getCastlingRights()               // returns fen string.
-                    // board.setEnpassantSquare(square);
-                    // BoardLegality board.getBoardLegalityState();        // returns legality state.
-
-                    // TODO: Implement these additional methods.
+                    out << " ◌ ╞╴ = [colour]           Makes it `colour`'s turn to play." << std::endl;
+                    out << " ◌ ╞╴ castles              Displays current castling rights." << std::endl;
+                    out << " ◌ ╞╴ toggle [right]       Toggles the specified castling right." << std::endl;
+                    out << " ◌ ╞╴ passant [square]     Sets the en passant square." << std::endl;
                     out << " ◌ ╞╴ done                 Exits setup mode." << std::endl;
                     
-                    board = Board::createBoardFromFEN("4k3/8/8/8/8/8/8/4K3 w - - 0 1");
+                    board = Board::createBoardFromFEN("8/8/8/8/8/8/8/8 w - - 0 1");
                     io.display(board, state, true);
 
                     out << " ● │ Command: ";
@@ -505,9 +523,83 @@ void TextInput::runProgram(IO& io, std::ostream& out) {
                             } else {
                                 out << " ◌ │ Usage:  = [colour]" << std::endl;
                             }
+                        } else if (command == "castle" || command == "castles") {
+                            out << " ◌ │ Castling rights:   " << board.getCastlingRights() << std::endl;
+                        } else if (command == "toggle") {
+                            std::string first = "";
+                            lineStream >> first;
+
+                            if (first != "") {
+                                if (std::regex_match(first, std::regex("^[kqKQ]$"))) {
+                                    std::string rights = board.getCastlingRights();
+                                    bool isSet = rights.find(first[0]) != std::string::npos;
+
+                                    Color side = (first[0] > 'a') ? Color::White : Color::Black;
+                                    bool isKingside = first[0] == (side == Color::White ? 'k' : 'K');
+
+                                    if (isSet) {
+                                        board.clearCastlingRight(side, isKingside);
+                                        out << " ◌ │ The " << first << " right was revoked." << std::endl;
+                                    } else {
+                                        bool successfullySet = board.setCastlingRight(side, isKingside);
+                                        if (successfullySet) {
+                                            out << " ◌ │ The " << first << " right was enabled." << std::endl;
+                                        } else {
+                                            out << " ◌ │ The " << first << " right can't be enabled in this board position." << std::endl;
+                                        }
+                                    }
+                                } else {
+                                    out << " ◌ │ A valid castling right (k, q, K, Q) was not specified." << std::endl;
+                                }
+                            } else {
+                                out << " ◌ │ Usage:  toggle [right]" << std::endl;
+                            }
+                            // board.setCastlingRight(Color side, isKingside)
+
+
+                            out << " ◌ │ Castling rights:   " << board.getCastlingRights() << std::endl;
+                        } else if (command == "passant") {
+                            std::string first = "";
+                            lineStream >> first;
+
+                            if (first != "") {
+                                if (std::regex_match(first, std::regex("^(-)|([a-h][1-8])$"))) {
+                                    board.setEnpassantSquare(board.squareFromString(first));
+                                } else {
+                                    out << " ◌ │ A valid square (a1 through h8) or blank (-) wasn't specified." << std::endl;
+                                }
+                            } else {
+                                out << " ◌ │ Usage:  passant [square]" << std::endl;
+                            }
                         } else if (command == "done") {
-                            // TODO: verify that board is "legal"!
-                            break;
+                            Board::BoardLegality legality = board.getBoardLegalityState();
+
+                            if (legality == Board::BoardLegality::Legal) {
+                                if (!board.countLegalMoves() || board.isDrawn()) { // Game is over
+                                    if (board.isSideInCheck(board.getTurn())) { // In Checkmate
+                                        out << " ◌ │ " << (board.getTurn() == Color::White ? "White" : "Black") << " is in checkmate. This is an invalid setup." << std::endl;
+                                    } else {
+                                        if (board.isInsufficientMaterialDraw()) {
+                                            out << " ◌ │ The game is drawn by insufficient material. This is an invalid setup." << std::endl;
+                                        } else { // Must be stalemate.
+                                            out << " ◌ │ The game is drawn by stalemate. This is an invalid setup." << std::endl;
+                                        }
+                                    }
+                                } else {
+                                    board.validateLegality();
+                                    out << " ◌ │ The board is set up legally:" << std::endl;
+                                    io.display(board, state, true);
+                                    break; // Exit setup mode.
+                                }
+                            } else if (legality == Board::BoardLegality::IllegalPawns) {
+                                out << " ◌ │ You have pawns on the 1st or 8th ranks." << std::endl;
+                            } else if (legality == Board::BoardLegality::IllegalKingPosition) {
+                                out << " ◌ │ " << (board.getTurn() == Color::White ? "White" : "Black") << " can capture " << (board.getTurn() == Color::White ? "Black" : "White") << "'s king!" << std::endl;
+                            } else if (legality == Board::BoardLegality::IllegalKings) {
+                                out << " ◌ │ You don't have exactly one of each king." << std::endl;
+                            } else { // legality == Board::BoardLegality::IllegalEnpassant
+                                out << " ◌ │ Your en passant square is illegal. Typing `passant -` would remove it." << std::endl;
+                            }
                         } else if (command != "") { // Invalid command
                             out << " ◌ │ `" << command << "` is not a command." << std::endl;
                         }
@@ -521,6 +613,7 @@ void TextInput::runProgram(IO& io, std::ostream& out) {
                     if (std::regex_match(fen, std::regex("\\s*([rnbqkpRNBQKP1-8]+\\/){7}([rnbqkpRNBQKP1-8]+)\\s[bw-]\\s(([a-hkqA-HKQ]{1,4})|(-))\\s(([a-h][36])|(-))\\s\\d+\\s\\d+\\s*"))) {
                         out << " ◌ ╭─────╴ SETUP MODE ─ Opened" << std::endl;
                         board = Board::createBoardFromFEN(fen); // No error-checking here because official FEN correctness is a pain in the ass.
+                        board.validateLegality();
                         out << " ◌ │ Board successfully initialized with your FEN: " << std::endl;
                         io.display(board, state, true); // passing in `true` means IO displays it in setup mode.
                         out << " ◌ ╰─────╴ SETUP MODE ─ Closed" << std::endl;
@@ -574,6 +667,12 @@ void TextInput::runProgram(IO& io, std::ostream& out) {
             out << " ◌    │          Removes any piece at square `square`." << std::endl;
             out << " ◌    ╞╴ = [colour]" << std::endl;
             out << " ◌    │          Makes it `colour`'s turn to play." << std::endl;
+            out << " ◌    ╞╴ castles" << std::endl;
+            out << " ◌    │          Displays the current castling rights." << std::endl;
+            out << " ◌    ╞╴ toggle [right]" << std::endl;
+            out << " ◌    │          Toggles the specified castling right." << std::endl;
+            out << " ◌    ╞╴ passant [square]" << std::endl;
+            out << " ◌    │          Sets the en passant square." << std::endl;
             out << " ◌    ╞╴ done" << std::endl;
             out << " ◌ ╭──╯          Exits setup mode, if restrictions are met." << std::endl;
             out << " ◌ ╞╴ toggle [0-3]" << std::endl;
@@ -598,19 +697,18 @@ void TextInput::runProgram(IO& io, std::ostream& out) {
             out << " ◌ ║ Black: " << scores.second << (scores.second >= 10 ? "" : " ") << (scores.second - std::floor(scores.second) ? "" : "  ") << "      ║" << std::endl;
             out << " ◌ ╚══════════════════╝" << std::endl;
         } else if (command == "setting" || command == "settings") {
-            out << " ◌ Type `toggle [0-4]` to toggle these settings:" << std::endl;
-            out << " ◌ 0 - ASCII pieces        " << (!io.getSetting(0) ? "ON" : "OFF") << std::endl;
-            out << " ◌ 1 - Checkerboard        " << (io.getSetting(1) ? "ON" : "OFF") << std::endl;
-            out << " ◌ 2 - Flip perspective    " << (io.getSetting(2) ? "ON" : "OFF") << std::endl;
-            out << " ◌ 3 - Wide display        " << (io.getSetting(3) ? "ON" : "OFF") << std::endl;
-            out << " ◌ 4 - Computer auto-move  " << (io.getSetting(4) ? "ON" : "OFF") << std::endl;
+            out << " ◌ Type `toggle [0-3]` to toggle these settings:" << std::endl;
+            for (int i = 0; i <= 3; i++) {
+                printSetting(out, i, io.getSetting(i));
+            }
         } else if (command == "toggle") {
             int n = -1;
             lineStream >> n;
-            if (lineStream && n >= 0 && n <= 4) {
+            if (lineStream && n >= 0 && n <= 3) {
                 io.toggleSetting(n);
+                printSetting(out, n, io.getSetting(n));
             } else {
-                out << " ◌ Usage:  toggle [0-4]" << std::endl;
+                out << " ◌ Usage:  toggle [0-3]" << std::endl;
                 out << " ◌ Type `settings` for the setting list." << std::endl;
             }
         } else if (command == "perft") {

@@ -11,7 +11,7 @@
 
 typedef uint64_t Bitboard;
 
-/**
+/**g
  * The main board class that represents a current board position which is allowed to be ___PSEUDO-LEGAL___
  * (which means that it is either a legal position or a position that arose from a legal position where a side left their king in check, which is illegal)
  * Internally, it represents things using bitboards, which are several fancy unsigned 64 bit integers, where each bit corresponds to a square
@@ -21,7 +21,7 @@ typedef uint64_t Bitboard;
 class Board {
 public:
     enum BoardLegality {
-        Legal = 0, IllegalKings, IllegalPawns, IllegalEnpassant
+        Legal = 0, IllegalKings, IllegalKingPosition, IllegalPawns, IllegalEnpassant
     };
    /**
     * LERF (little endian rank file) enumeration for ranks, files, squares, diagonals, et cetera
@@ -377,7 +377,7 @@ private:
 
     bool isSquareInBoardAttacked(Bitboard board, Color turn);
     //With these, we can do what is necessary to determine all the attacks
-    Bitboard getAllSquareAttackers(Bitboard occupiedBoard, Square square);
+    Bitboard getAllSquareAttackers(Bitboard occupiedBoard, Square square) const;
     Bitboard getAllKingAttackers();
 
     //Some special things for pawns (their rules are weird)
