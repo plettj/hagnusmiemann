@@ -141,6 +141,8 @@ public:
      * Returns number of moves added to vector THAT ARE PSEUDO-LEGAL.
      */
     int generateAllNoisyMoves(std::vector<Move>& moveList);
+
+    int generateAllNoisyMovesAndChecks(std::vector<Move>& moveList);
     /**
      * A quiet move is what's left from the list above.
      * Returns number of moves added to vector THAT ARE PSEUDO-LEGAL.

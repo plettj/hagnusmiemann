@@ -1,22 +1,37 @@
 #include "moveorder.h"
 #include <algorithm>
 
-MoveOrderer::MoveOrderer(Board& board) : board{board} {
+/**
+ * Static Exchange Evaluation scores for each piece
+ */
+static constexpr std::array<CentipawnScore, NumPieces> seeScores = {100, 400, 400, 700, 1400, 0};
+/**
+ *  MVV-LVA values for each piece
+ */
+static constexpr std::array<HeuristicScore, NumPieces> mvvLvaScores = {0, 3000, 3500, 5000, 10000, 11000};
+
+
+MoveOrderer::MoveOrderer() {
     moveList.reserve(MaxNumMoves);
 }
 
 //haha funny meme number
-RandomMoveOrderer::RandomMoveOrderer(Board& board) : MoveOrderer{board}, rng{100000000} {}
+RandomMoveOrderer::RandomMoveOrderer() : MoveOrderer{}, rng{100000000} {}
+
+void RandomMoveOrderer::seedMoveOrderer(Board& board, bool noisyOnly) {
+    this->board = &board;
+    this->tacticalSearch = noisyOnly;
+    if(noisyOnly) {
+        size = board.generateAllNoisyMovesAndChecks(moveList);
+    } else {
+        size = board.generateAllPseudoLegalMoves(moveList);
+    }
+}
 
 Move RandomMoveOrderer::pickNextMove(bool noisyOnly) {
     if(size == 0) {
-        if(noisyOnly) {
-            size = board.generateAllNoisyMoves(moveList);
-        } else {
-            size = board.generateAllPseudoLegalMoves(moveList);
-        }
+        return Move{};
     }
-
     std::uniform_int_distribution<> randomDistribution{0, size - 1};
     int random = randomDistribution(rng);
     
@@ -26,9 +41,9 @@ Move RandomMoveOrderer::pickNextMove(bool noisyOnly) {
     return move;
 }
 
-HeuristicMoveOrderer::HeuristicMoveOrderer(Board& board) : MoveOrderer{board}, currentMoveScores{} {
-    std::fill_n(killerHistoryOne, MaxDepth, Move{});
-    std::fill_n(killerHistoryTwo, MaxDepth, Move{});
+HeuristicMoveOrderer::HeuristicMoveOrderer() : MoveOrderer{}, currentMoveScores{} {
+    killerHistoryOne.fill(Move{});
+    killerHistoryTwo.fill(Move{});
     for(int i = 0; i < NumColors; ++i) {
         for(int j = 0; j < NumPieces; ++j) {
             for(int k = 0; k < NumSquares; ++k) {
@@ -41,19 +56,19 @@ HeuristicMoveOrderer::HeuristicMoveOrderer(Board& board) : MoveOrderer{board}, c
 }
 
 bool HeuristicMoveOrderer::staticExchangeEvaluation(const Move& move, CentipawnScore margin) {
-    
+    assert(board != nullptr);
     //Iteratively go through the pieces that can attack the square in question (taking into account piece values) and 
     //determine who wins.
     CentipawnScore sideBalance = 0;
 
     //After doing the capture, the next victim is the piece we captured with unless we promote and 
     //that piece changes (done in the below if statement)
-    Piece victim = getPieceType(board.getPieceAt(move.getFrom()));
+    Piece victim = getPieceType(board->getPieceAt(move.getFrom()));
 
     if(move.getMoveType() != Move::Enpassant) {
         assert(move.getMoveType() != Move::Castle);
         //how valuable is the thing we are capturing
-        sideBalance = seeScores[getPieceType(board.getPieceAt(move.getTo()))];
+        sideBalance = seeScores[getPieceType(board->getPieceAt(move.getTo()))];
         if(move.getMoveType() == Move::Promotion) {
             victim = move.getPromoType();
             //add the value of promoting our thing to SEE
@@ -82,42 +97,42 @@ bool HeuristicMoveOrderer::staticExchangeEvaluation(const Move& move, CentipawnS
     //and count everything.
 
     //The occupied bitboard given that the first move happened.
-    Bitboard occupiedBoard = ((board.sides[White] | board.sides[Black]) ^ (1ull << move.getFrom())) | (1ull << move.getTo());
+    Bitboard occupiedBoard = ((board->sides[White] | board->sides[Black]) ^ (1ull << move.getFrom())) | (1ull << move.getTo());
     if(move.getMoveType() == Move::Enpassant) {
-        occupiedBoard ^= (1ull << board.enpassantSquare);
+        occupiedBoard ^= (1ull << board->enpassantSquare);
     }
 
-    Bitboard bishops = board.pieces[Bishop] | board.pieces[Queen];
-    Bitboard rooks = board.pieces[Rook] | board.pieces[Queen];
+    Bitboard bishops = board->pieces[Bishop] | board->pieces[Queen];
+    Bitboard rooks = board->pieces[Rook] | board->pieces[Queen];
 
-    Bitboard allSquareAttackers = (Board::PrecomputedBinary::getBinary().getPawnAttacksFromSquare(move.getTo(), White) & board.sides[Black] & board.pieces[Pawn])
-                                | (Board::PrecomputedBinary::getBinary().getPawnAttacksFromSquare(move.getTo(), Black) & board.sides[White] & board.pieces[Pawn])
-                                | (Board::PrecomputedBinary::getBinary().getKnightAttacksFromSquare(move.getTo()) & board.pieces[Knight])
+    Bitboard allSquareAttackers = (Board::PrecomputedBinary::getBinary().getPawnAttacksFromSquare(move.getTo(), White) & board->sides[Black] & board->pieces[Pawn])
+                                | (Board::PrecomputedBinary::getBinary().getPawnAttacksFromSquare(move.getTo(), Black) & board->sides[White] & board->pieces[Pawn])
+                                | (Board::PrecomputedBinary::getBinary().getKnightAttacksFromSquare(move.getTo()) & board->pieces[Knight])
                                 | (Board::PrecomputedBinary::getBinary().getBishopAttacksFromSquare(move.getTo(), occupiedBoard) & bishops)
                                 | (Board::PrecomputedBinary::getBinary().getRookAttacksFromSquare(move.getTo(), occupiedBoard) & rooks)
-                                | (Board::PrecomputedBinary::getBinary().getKingAttacksFromSquare(move.getTo()) & board.pieces[King]);
+                                | (Board::PrecomputedBinary::getBinary().getKingAttacksFromSquare(move.getTo()) & board->pieces[King]);
     //so the original piece doesn't attack twice
     allSquareAttackers &= occupiedBoard;
 
-    Color turn = flipColor(board.turn);
+    Color turn = flipColor(board->turn);
 
-    for(Bitboard attackers = allSquareAttackers & board.sides[turn]; attackers != 0;) {
+    for(Bitboard attackers = allSquareAttackers & board->sides[turn]; attackers != 0;) {
         //find the next piece we can attack with with least value
-        if((attackers & board.pieces[Pawn]) != 0) {
+        if((attackers & board->pieces[Pawn]) != 0) {
             victim = Pawn;
-        } else if((attackers & board.pieces[Knight]) != 0) {
+        } else if((attackers & board->pieces[Knight]) != 0) {
             victim = Knight;
-        } else if((attackers & board.pieces[Bishop]) != 0) {
+        } else if((attackers & board->pieces[Bishop]) != 0) {
             victim = Bishop;
-        } else if((attackers & board.pieces[Rook]) != 0) {
+        } else if((attackers & board->pieces[Rook]) != 0) {
             victim = Rook;
-        } else if((attackers & board.pieces[Queen]) != 0) {
+        } else if((attackers & board->pieces[Queen]) != 0) {
             victim = Queen;
         } else {
             victim = King;
         }
         //remove this attacker from its current square
-        occupiedBoard ^= (1ull << Board::getLsb(attackers & board.pieces[victim]));
+        occupiedBoard ^= (1ull << Board::getLsb(attackers & board->pieces[victim]));
         //If we attacked diagonally, we could open up a diagonal
         if(victim == Pawn || victim == Bishop || victim == Queen) {
             allSquareAttackers |= (Board::PrecomputedBinary::getBinary().getBishopAttacksFromSquare(move.getTo(), occupiedBoard) & bishops);
@@ -137,7 +152,7 @@ bool HeuristicMoveOrderer::staticExchangeEvaluation(const Move& move, CentipawnS
         //if we just are winning even after losing the piece we capture with
         //for nothing, we win the exchange, unless we captured with our king and the opponent still has attackers
         if(sideBalance >= 0) {
-            if(victim == King && (allSquareAttackers & board.sides[turn]) != 0) {
+            if(victim == King && (allSquareAttackers & board->sides[turn]) != 0) {
                 //change who wins as we break out of the loop
                 turn = flipColor(turn);
             }
@@ -145,7 +160,7 @@ bool HeuristicMoveOrderer::staticExchangeEvaluation(const Move& move, CentipawnS
         }
     }
     //we win if we were not the side who ran out of valid pieces first
-    return turn != board.turn;
+    return turn != board->turn;
 }
 
 HeuristicScore HeuristicMoveOrderer::getNewHistoryValue(HeuristicScore oldValue, int depth, bool positiveBonus) {
@@ -168,28 +183,28 @@ void HeuristicMoveOrderer::updateQuietHeuristics(std::vector<Move>& moveList, in
         killerHistoryTwo[depth] = killerHistoryOne[depth];
         killerHistoryOne[depth] = finalMove;
     }
-    if(!board.getLastPlayedMove().isMoveNone()) {
-        counterMoves[flipColor(board.getTurn())][getPieceType(board.getPieceAt(board.getLastPlayedMove().getTo()))][board.getLastPlayedMove().getTo()] = finalMove;
+    if(!board->getLastPlayedMove().isMoveNone()) {
+        counterMoves[flipColor(board->getTurn())][getPieceType(board->getPieceAt(board->getLastPlayedMove().getTo()))][board->getLastPlayedMove().getTo()] = finalMove;
     }
     //don't record a history heuristic if we didn't calculate anything meaningful
     if(depth == 0 || moveList.size() <= 3) {
         return;
     }
-    for(const Move& move : moveList) {
-        quietHistory[board.getTurn()][move.getFrom()][move.getTo()] = getNewHistoryValue(quietHistory[board.getTurn()][move.getFrom()][move.getTo()], depth, move == finalMove);
+    for(Move& move : moveList) {
+        quietHistory[board->getTurn()][move.getFrom()][move.getTo()] = getNewHistoryValue(quietHistory[board->getTurn()][move.getFrom()][move.getTo()], depth, move == finalMove);
     }
 }
 
 void HeuristicMoveOrderer::updateNoisyHeuristics(std::vector<Move>& moveList, Move& best, int depth) {
-    for(const Move& move : moveList) {
+    for(Move& move : moveList) {
         Piece capturedPiece;
         if(move.getMoveType() == Move::Normal) {
-            capturedPiece = getPieceType(board.getPieceAt(move.getTo()));
+            capturedPiece = getPieceType(board->getPieceAt(move.getTo()));
         } else { //enpassant or promotion, consider promotions as pawn captures because we have space in the array there
             capturedPiece = Pawn;
         }
         assert(capturedPiece != King);
-        captureHistory[getPieceType(board.getPieceAt(move.getFrom()))][move.getTo()][capturedPiece] = getNewHistoryValue(captureHistory[getPieceType(board.getPieceAt(move.getFrom()))][move.getTo()][capturedPiece], depth, move == best);
+        captureHistory[getPieceType(board->getPieceAt(move.getFrom()))][move.getTo()][capturedPiece] = getNewHistoryValue(captureHistory[getPieceType(board->getPieceAt(move.getFrom()))][move.getTo()][capturedPiece], depth, move == best);
     }
 }
 
@@ -213,14 +228,18 @@ Move HeuristicMoveOrderer::popFirstMove() {
     return move;
 }
 
-void HeuristicMoveOrderer::seedMoveOrderer(bool tacticalSearch, CentipawnScore seeMargin) {
+void HeuristicMoveOrderer::setSeeMarginInOrdering(CentipawnScore seeMargin) {
+    this->currentSEEMargin = seeMargin;
+}
+
+void HeuristicMoveOrderer::seedMoveOrderer(Board& board, bool tacticalSearch) {
+    this->board = &board;
     moveList.clear();
     moveList.reserve(MaxNumMoves);
     noisySize = 0;
     quietSize = 0;
     currentStage = GenerateNoisy;
     this->tacticalSearch = tacticalSearch;
-    this->currentSEEMargin = seeMargin;
     if(tacticalSearch) {
         //Don't play refutation moves here, they're tactical enough such that we
         //should just calculate them and not heuristically refute them.
@@ -240,6 +259,7 @@ void HeuristicMoveOrderer::seedMoveOrderer(bool tacticalSearch, CentipawnScore s
 }
 
 Move HeuristicMoveOrderer::pickNextMove(bool noisyOnly) {
+    assert(board != nullptr);
     //If we are doing a tactical search, override the preferences of noisy only
     if(tacticalSearch) {
         noisyOnly = tacticalSearch;
@@ -248,20 +268,20 @@ Move HeuristicMoveOrderer::pickNextMove(bool noisyOnly) {
         case GenerateNoisy:
             //Step 1. generate noisy moves and then order them.
             //This is always done regardless if we are doing a tactical search or not.
-            noisySize = board.generateAllNoisyMoves(moveList);
+            noisySize = board->generateAllNoisyMoves(moveList);
     
             //set MVV-LVA and history for each noisy move
-            for(const Move& move : moveList) {
+            for(Move& move : moveList) {
                 Piece capturedPiece;
                 if(move.getMoveType() == Move::Normal) {
-                    capturedPiece = getPieceType(board.getPieceAt(move.getTo()));
+                    capturedPiece = getPieceType(board->getPieceAt(move.getTo()));
                 } else { //enpassant or promotion, consider promotions as pawn captures because we have space in the array there
                     capturedPiece = Pawn;
                 }
                 assert(capturedPiece != King);
 
-                HeuristicScore historyValue = captureHistory[getPieceType(board.getPieceAt(move.getFrom()))][move.getTo()][capturedPiece];
-                HeuristicScore mvvLvaValue = mvvLvaScores[capturedPiece] - mvvLvaScores[getPieceType(board.getPieceAt(move.getFrom()))];
+                HeuristicScore historyValue = captureHistory[getPieceType(board->getPieceAt(move.getFrom()))][move.getTo()][capturedPiece];
+                HeuristicScore mvvLvaValue = mvvLvaScores[capturedPiece] - mvvLvaScores[getPieceType(board->getPieceAt(move.getFrom()))];
 
                 //promoting to queens is a thing that we should prioritize calculating
                 if(move.getMoveType() == Move::Promotion && move.getPromoType() == Queen) {
@@ -311,7 +331,7 @@ Move HeuristicMoveOrderer::pickNextMove(bool noisyOnly) {
             //If we successfully play it, our next move should be the next killer move
             //so set the stage we should be at to do so if we end up returning.
             currentStage = KillerTwo;
-            if(!noisyOnly && board.isMovePseudoLegal(killerOne)) {
+            if(!noisyOnly && board->isMovePseudoLegal(killerOne)) {
                 return killerOne;
             }
             [[fallthrough]];
@@ -321,26 +341,26 @@ Move HeuristicMoveOrderer::pickNextMove(bool noisyOnly) {
             //so set the stage we should be at to do so if we end up returning.
             currentStage = Counter;
                 
-            if(!noisyOnly && board.isMovePseudoLegal(killerTwo)) {
+            if(!noisyOnly && board->isMovePseudoLegal(killerTwo)) {
                 return killerTwo;
             }
             [[fallthrough]];
         case Counter:
             //Set the stage we should be at if we end up returning
             currentStage = GenerateQuiet;
-            if(!noisyOnly && counter != killerOne && counter != killerTwo && board.isMovePseudoLegal(counter)) {
+            if(!noisyOnly && counter != killerOne && counter != killerTwo && board->isMovePseudoLegal(counter)) {
                 return counter;
             }
             [[fallthrough]];
         //Step 4:     
         case GenerateQuiet:
             if(!noisyOnly) {
-                quietSize = board.generateAllQuietMoves(moveList);
+                quietSize = board->generateAllQuietMoves(moveList);
                 //set histories
                 for(int i = noisySize; i < noisySize + quietSize; ++i) {
                     Move move = moveList[i];
                     //TODO: We could add a followup move or counter move history here
-                    currentMoveScores[move] = quietHistory[board.getTurn()][move.getFrom()][move.getTo()];
+                    currentMoveScores[move] = quietHistory[board->getTurn()][move.getFrom()][move.getTo()];
                 }
             }
             [[fallthrough]];    
@@ -378,4 +398,12 @@ Move HeuristicMoveOrderer::pickNextMove(bool noisyOnly) {
             //Return an empty move, since we have ran out of moves to look for under the given constraints
             return Move{};
     }
+}
+
+std::unique_ptr<MoveOrderer> RandomMoveOrderer::clone() const {
+    return std::make_unique<RandomMoveOrderer>(*this);
+}
+
+std::unique_ptr<MoveOrderer> HeuristicMoveOrderer::clone() const {
+    return std::make_unique<HeuristicMoveOrderer>(*this);
 }

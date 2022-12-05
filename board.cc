@@ -490,7 +490,7 @@ void Board::clearSquare(Square square) {
 }
 
 Board::BoardLegality Board::getBoardLegalityState() const {
-    if(popCnt(pieces[King]) != 2 || popCnt(pieces[King] & sides[White]) != 1 || popCnt(pieces[King] & sides[Black])) {
+    if(popCnt(pieces[King]) != 2 || popCnt(pieces[King] & sides[White]) != 1 || popCnt(pieces[King] & sides[Black]) != 1) {
         return IllegalKings;
     }
     if((pieces[Pawn] & Rank1) != 0 || (pieces[Pawn] & Rank8) != 0) {
@@ -1245,6 +1245,23 @@ int Board::generateAllNoisyMoves(std::vector<Move>& moveList) {
     //is for the king to capture a non-checking piece. This was a very annoying bug to find.
     addNonPawnNormalMoves(moveList, King, sides[flipColor(turn)], sides[turn] & pieces[King], occupiedBoard);
 
+    return moveList.size() - startSize;
+}
+
+int Board::generateAllNoisyMovesAndChecks(std::vector<Move>& moveList) {
+    const int startSize = moveList.size();
+    std::vector<Move> checks;
+    generateAllNoisyMoves(moveList);
+    generateAllQuietMoves(checks);
+    undoStack.emplace_back();
+    for(Move& move : checks) {
+        applyMoveWithUndo(move, undoStack.back());
+        if(kingAttackers != 0) {
+            moveList.emplace_back(move);
+        }
+        revertMove(undoStack.back());
+    }
+    undoStack.pop_back();
     return moveList.size() - startSize;
 }
 
