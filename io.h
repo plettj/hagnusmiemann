@@ -7,14 +7,15 @@
 
 class Input;
 class Output;
+class TextInput;
 
 /**
  * IO is a meta-object, to hold the Displays [observers] and
  * the singular Input [subject], that follow the Observer pattern
  */
 class IO {
-    Input* input;
-    std::vector<Output*> outputs;
+    std::unique_ptr<Input> input;
+    std::vector<std::unique_ptr<Output>> outputs;
     std::ostream& out; // for the Input object to use.
 
     bool basicPieces = true; // Whether pieces are drawn with text [eg. K] or ascii pieces [eg. ♔]
@@ -26,7 +27,7 @@ public:
     IO(std::istream& in, std::ostream& out);
     void makeTextOutput(std::ostream& out);
     void makeGraphicOutput();
-    void display(Board& board, GameState state, bool setup = false);
+    void display(Board& board, GameState state, bool setup = false, bool firstSetup = false);
     void toggleSetting(int setting);
     bool getSetting(int setting);
     void runProgram();
@@ -38,7 +39,7 @@ protected:
     Input* toFollow;
 public:
     Output(Input* toFollow): toFollow{toFollow} {};
-    virtual void display(Board& board, std::array<bool, 4> settings, GameState state, bool setup) = 0; // notify()
+    virtual void display(Board& board, std::array<bool, 4> settings, GameState state, bool setup, bool firstSetup) = 0; // notify()
 };
 
 // Concrete Observer #1
@@ -49,7 +50,7 @@ class TextOutput: public Output {
     const std::array<std::string, 12> PieceImage{"♟", "♙", "♞", "♘", "♝", "♗", "♜", "♖", "♛", "♕", "♚", "♔"};
 public:
     TextOutput(Input* toFollow, std::ostream& out);
-    void display(Board& board, std::array<bool, 4> settings, GameState state, bool setup) override;
+    void display(Board& board, std::array<bool, 4> settings, GameState state, bool setup, bool firstSetup) override;
 };
 
 // Concrete Observer #2
@@ -57,7 +58,7 @@ class GraphicalOutput: public Output {
 
 public:
     GraphicalOutput(Input* toFollow);
-    void display(Board& board, std::array<bool, 4> settings, GameState state, bool setup) override;
+    void display(Board& board, std::array<bool, 4> settings, GameState state, bool setup, bool firstSetup) override;
 };
 
 // Subject
@@ -67,7 +68,7 @@ protected:
 public:
     virtual void attach(Output* output) = 0;
     virtual void detach(Output* output) = 0;
-    virtual void notifyOutputs(Board& board, std::array<bool, 4> settings, GameState state, bool setup) = 0;
+    virtual void notifyOutputs(Board& board, std::array<bool, 4> settings, GameState state, bool setup, bool firstSetup) = 0;
     virtual void runProgram(IO& io, std::ostream& out) = 0;
 };
 
@@ -78,7 +79,7 @@ public:
     TextInput(std::istream& in): in{in} {};
     void attach(Output* output) override;
     void detach(Output* output) override;
-    void notifyOutputs(Board& board, std::array<bool, 4> settings, GameState state, bool setup) override;
+    void notifyOutputs(Board& board, std::array<bool, 4> settings, GameState state, bool setup, bool firstSetup) override;
     void runProgram(IO& io, std::ostream& out) override;
 };
 

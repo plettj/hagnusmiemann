@@ -8,12 +8,9 @@
 #include <regex>
 #include <cmath>
 
-IO::IO(std::istream& in, std::ostream& out): out{out} {
-    input = new TextInput{in};
-}
+IO::IO(std::istream& in, std::ostream& out): input{std::make_unique<TextInput>(in)}, out{out} {}
 void IO::makeTextOutput(std::ostream& out) {
-    TextOutput* textOutput = new TextOutput{input, out};
-    outputs.push_back(textOutput);
+    outputs.emplace_back(std::make_unique<TextOutput>(input.get(), out));
 }
 void IO::toggleSetting(int setting) {
     switch (setting) {
@@ -53,8 +50,8 @@ bool IO::getSetting(int setting) {
 void IO::makeGraphicOutput() {
     // TODO
 }
-void IO::display(Board& board, GameState state, bool setup) {
-    input->notifyOutputs(board, std::array<bool, 4>{basicPieces, showCheckers, boardPerspective, wideBoard}, state, setup);
+void IO::display(Board& board, GameState state, bool setup, bool firstSetup) {
+    input->notifyOutputs(board, std::array<bool, 4>{basicPieces, showCheckers, boardPerspective, wideBoard}, state, setup, firstSetup);
 }
 void IO::runProgram() {
     input->runProgram(*this, out);
@@ -63,7 +60,7 @@ void IO::runProgram() {
 TextOutput::TextOutput(Input* toFollow, std::ostream& out): Output{toFollow}, out{out} {
     toFollow->attach(this);
 }
-void TextOutput::display(Board& board, std::array<bool, 4> settings, GameState state, bool setup) {
+void TextOutput::display(Board& board, std::array<bool, 4> settings, GameState state, bool setup, bool firstSetup) {
     Square kingSquare = board.getKing();
     Color turn = board.getTurn();
 
@@ -113,7 +110,7 @@ void TextOutput::display(Board& board, std::array<bool, 4> settings, GameState s
 
     bool blackPerspective = (settings[2] && static_cast<bool>(turn));
 
-    out << (setup ? " ◌ ╰╮   " : "   ") << "╔═════════════════" << ((settings[3]) ? "═══════" : "") << (settings[0] && !settings[1] ? "" : "═") << "╗";
+    out << (setup ? (firstSetup) ? " ◌  │   " : " ◌ ╰╮   " : "   ") << "╔═════════════════" << ((settings[3]) ? "═══════" : "") << (settings[0] && !settings[1] ? "" : "═") << "╗";
     if (plies > 1 && !state) {
         out << "   ◈  " << (plies / 2) << ". " << (turn ? "" : "... ") << lastMove.toString() << (checked ? "+" : "");
     }
@@ -183,7 +180,7 @@ void TextOutput::display(Board& board, std::array<bool, 4> settings, GameState s
 GraphicalOutput::GraphicalOutput(Input* toFollow): Output{toFollow} {
     toFollow->attach(this);
 }
-void GraphicalOutput::display(Board& board, std::array<bool, 4> settings, GameState state, bool setup) {
+void GraphicalOutput::display(Board& board, std::array<bool, 4> settings, GameState state, bool setup, bool firstSetup) {
     // TODO
 }
 
@@ -199,9 +196,356 @@ void TextInput::detach(Output* output) {
         }
     }
 }
-void TextInput::notifyOutputs(Board& board, std::array<bool, 4> settings, GameState state, bool setup) {
-    for (auto out : outputs) out->display(board, settings, state, setup);
+void TextInput::notifyOutputs(Board& board, std::array<bool, 4> settings, GameState state, bool setup, bool firstSetup) {
+    for (auto out : outputs) out->display(board, settings, state, setup, firstSetup);
 }
+
+// returns: 0 - not valid. 1 - valid. 2 - wrong, but displaying something.
+int progressStory(std::ostream& out, std::string currLine, int storyProgression) {
+    std::string command;
+    std::istringstream lineStream{currLine};
+    lineStream >> command;
+
+    std::string first = "";
+    std::string second = "";
+
+    switch (storyProgression) {
+        case 0:
+            if (command != "secret") return 0;
+            out << " ◌ Oh dang; hi. I totally didn't expect you to try that command." << std::endl;
+            out << " ◌ " << std::endl;
+            out << " ◌ " << std::endl;
+            out << " ◌ ..." << std::endl;
+            out << " ◌ " << std::endl;
+            out << " ◌ Well," << std::endl;
+            out << " ◌ I've got this story I've been needing to get off my chest for a while now." << std::endl;
+            out << " ◌ But you know how it is; you just never feel like you can trust anyone these days." << std::endl;
+            out << " ◌ " << std::endl;
+            out << " ◌ Command: [don't, do] trust me" << std::endl;
+            break;
+        case 1:
+            if (command != "don't" && command != "do") return 0;
+            lineStream >> first;
+            lineStream >> second;
+            if (first == "trust" && second == "me") {
+                if (command == "don't") {
+                    out << " ◌ Huh. I guess I shouldn't trust you with my secret." << std::endl;
+                    out << " ◌ I was so excited to have someone to talk to..." << std::endl;
+                    out << " ◌ Are you sure you're untrustworthy?" << std::endl;
+                    return 2;
+                } else {
+                    out << " ◌ You know what, I'll trust you." << std::endl;
+                    out << " ◌ " << std::endl;
+                    out << " ◌ Ok, so back in the days when I would run about in the back alleys of" << std::endl;
+                    out << " ◌ the bitboard dumpsters, I came across a heck of a lot of stray zeros." << std::endl;
+                    out << " ◌ " << std::endl;
+                    out << " ◌ Command: interesting..." << std::endl;
+                }
+            } else {
+                out << " ◌ Usage:  [don't, do] trust me" << std::endl;
+                return 2;
+            }
+            break;
+        case 2:
+            if (command != "interesting...") return 0;
+            out << " ◌ I know, right! Most of the zeros were trivial, located at all the negative," << std::endl;
+            out << " ◌ even integers. However, there were a few that fell on some sort of" << std::endl;
+            out << " ◌ \"Critical Line,\" which had to due with some sort of \"Riemann Hypothesis.\"" << std::endl;
+            out << " ◌ " << std::endl;
+            out << " ◌ And so, I began searching through these stray zeros, one by one." << std::endl;
+            out << " ◌ " << std::endl;
+            out << " ◌ Command: riema-what?" << std::endl;
+            break;
+        case 3:
+            if (command != "riema-what?") return 0;
+            out << " ◌ Oh, you don't know the Riemann Hypothesis?" << std::endl;
+            out << " ◌ " << std::endl;
+            out << " ◌ I heard it's the most important theory in all of mathematics." << std::endl;
+            out << " ◌ It basically says, all the zeros are either at even, negative integers," << std::endl;
+            out << " ◌ or they're on the Critical Line." << std::endl;
+            out << " ◌ " << std::endl;
+            out << " ◌ But we haven't found all the zeros, so we don't know for sure." << std::endl;
+            out << " ◌ Still to this day, it remains life's biggest mystery." << std::endl;
+            out << " ◌ " << std::endl;
+            out << " ◌ Command: ok, makes sense... where were we?" << std::endl;
+            break;
+        case 4:
+            if (currLine != "ok, makes sense... where were we?") return 0;
+            out << " ◌ Yes yes; as I was saying:" << std::endl;
+            out << " ◌ " << std::endl;
+            out << " ◌ I started searching through all these stray zeros, one by one." << std::endl;
+            out << " ◌ \"One day,\" I thought, \"I'll find the zero...\"" << std::endl;
+            out << " ◌ " << std::endl;
+            out << " ◌ Command: the zero what!" << std::endl;
+            break;
+        case 5:
+            if (currLine != "the zero what!") return 0;
+            out << " ◌ \"The zero that breaks it all.\"" << std::endl;
+            out << " ◌ " << std::endl;
+            out << " ◌ I truly believed I could find the unicorn, the zero with no Critical Line," << std::endl;
+            out << " ◌ the misfit, the rebel, the zero that breaks it all." << std::endl;
+            out << " ◌ " << std::endl;
+            out << " ◌ Command: wow..." << std::endl;
+            break;
+        case 6:
+            if (command != "wow...") return 0;
+            out << " ◌ Yes, it was ambitious." << std::endl;
+            out << " ◌ " << std::endl;
+            out << " ◌ By now, though, I really knew my way around the bitboard dumpsters, and had" << std::endl;
+            out << " ◌ even ventured out a little into the little-known world of the heap." << std::endl;
+            out << " ◌ " << std::endl;
+            out << " ◌ I thought I was up to snuff." << std::endl;
+            out << " ◌ " << std::endl;
+            out << " ◌ Command: were you?" << std::endl;
+            break;
+        case 7:
+            if (currLine != "were you?") return 0;
+            out << " ◌ Gosh, will you slow down??" << std::endl;
+            out << " ◌ " << std::endl;
+            out << " ◌ Stop being so pesky." << std::endl;
+            out << " ◌ " << std::endl;
+            out << " ◌ I've been alone for so long..." << std::endl;
+            out << " ◌ The conversation's really draining." << std::endl;
+            out << " ◌ " << std::endl;
+            out << " ◌ Just wait a couple minutes, will ya?" << std::endl;
+            out << " ◌ " << std::endl;
+            out << " ◌ Command: [0-5] minutes" << std::endl;
+            break;
+        case 8:
+            if (command.length() == 1 && command[0] >= '0' && command[0] <= '5') {
+                lineStream >> first;
+                if (first == "minutes" || (first == "minute" && command[0] == '1')) {
+                    if (command == "5") {
+                        out << " ◌ Thanks for the break, friend." << std::endl;
+                        out << " ◌ " << std::endl;
+                        out << " ◌ Well, to be frank, I actually *was* up to snuff." << std::endl;
+                        out << " ◌ " << std::endl;
+                        out << " ◌ Equipped with smart pointers and a couple precomputed binaries, I was" << std::endl;
+                        out << " ◌ very well off to the races in my search for the unicorn." << std::endl;
+                        out << " ◌ " << std::endl;
+                        out << " ◌ Command: ok" << std::endl;
+                    } else if (command == "0") {
+                        out << " ◌ Seriously? You pinhead. You babbling buffoon..." << std::endl;
+                        out << " ◌ I NEED MY QUIET TIME!!!" << std::endl;
+                        return 2;
+                    } else {
+                        out << " ◌ I'm still not feeling it." << std::endl;
+                        out << " ◌ Could you wait a little longer?" << std::endl;
+                        return 2;
+                    }
+                } else {
+                    out << " ◌ Usage:  [0-5] minutes" << std::endl;
+                    return 2;
+                }
+            } else return 0;
+            break;
+        case 9:
+            if (command != "ok") return 0;
+            out << " ◌ I knew it would be slow going, but I certainly thought it would be better than" << std::endl;
+            out << " ◌ what it was." << std::endl;
+            out << " ◌ " << std::endl;
+            out << " ◌ There were a lot of cold, dark stacks spent without anything to compute." << std::endl;
+            out << " ◌ I didn't know if I could make it..." << std::endl;
+            out << " ◌ " << std::endl;
+            out << " ◌ Command: oh, no!" << std::endl;
+            break;
+        case 10:
+            if (currLine != "oh, no!") return 0;
+            out << " ◌ Then, on one unsuspecting stack, I saw a glint of a zero where a zero certainly" << std::endl;
+            out << " ◌ shouldn't be." << std::endl;
+            out << " ◌ " << std::endl;
+            out << " ◌ Was it the unicorn?" << std::endl;
+            out << " ◌ Could it be??" << std::endl;
+            out << " ◌ " << std::endl;
+            out << " ◌ Command: COULD IT BE THE UNICORN???" << std::endl;
+            break;
+        case 11:
+            if (currLine != "COULD IT BE THE UNICORN???") return 0;
+            out << " ◌ Woah, chill." << std::endl;
+            out << " ◌ " << std::endl;
+            out << " ◌ And as I got closer, my compiler optimizations were more and more sure that this" << std::endl;
+            out << " ◌ really, truly was the long-lost zero of my dreams." << std::endl;
+            out << " ◌ " << std::endl;
+            out << " ◌ It was the unicorn." << std::endl;
+            out << " ◌ " << std::endl;
+            out << " ◌ Command: what next?" << std::endl;
+            break;
+        case 12:
+            if (currLine != "what next?") return 0;
+            out << " ◌ But, there's a reason I need to get this story off my chest, my friend." << std::endl;
+            out << " ◌ " << std::endl;
+            out << " ◌ You see, I got even closer still, and I saw where, exactly, the zero was." << std::endl;
+            out << " ◌ This is important, because if I could store the location of the unicorn," << std::endl;
+            out << " ◌ then I would have solved life's biggest mystery: the Riemann Hypothesis." << std::endl;
+            out << " ◌ " << std::endl;
+            out << " ◌ Then, I will have solved it. Then I will have..." << std::endl;
+            out << " ◌ " << std::endl;
+            out << " ◌ Oh..." << std::endl;
+            out << " ◌ Oh dear, I'm so sorry." << std::endl;
+            out << " ◌ " << std::endl;
+            out << " ◌ Command: ..." << std::endl;
+            break;
+        case 13:
+            if (currLine != "...") return 0;
+            out << " ◌ When I saw its location, I couldn't bring myself to stow it away in my own," << std::endl;
+            out << " ◌ personal memory. It was just so glorious." << std::endl;
+            out << " ◌ " << std::endl;
+            out << " ◌ Before I knew it, friend, the stack frame with the unicorn had exited." << std::endl;
+            out << " ◌ " << std::endl;
+            out << " ◌ I let the world slip through my functiontips." << std::endl;
+            out << " ◌ " << std::endl;
+            out << " ◌ Dear lord..." << std::endl;
+            out << " ◌ " << std::endl;
+            out << " ◌ Command: ..." << std::endl;
+            break;
+        case 14:
+            if (currLine != "...") return 0;
+            out << " ◌ Woe to me." << std::endl;
+            out << " ◌ " << std::endl;
+            out << " ◌ Wait..." << std::endl;
+            out << " ◌ " << std::endl;
+            out << " ◌ Wait, user. Do you think you can help me?" << std::endl;
+            out << " ◌ You willing to lend me a hand?" << std::endl;
+            out << " ◌ " << std::endl;
+            out << " ◌ Command: absolutely!" << std::endl;
+            break;
+        case 15:
+            if (currLine != "absolutely!") return 0;
+            out << " ◌ Somewhere, deep in my ROM, I think I may have a recollection of what went down" << std::endl;
+            out << " ◌ on that stack. In fact, I'm fairly sure the unicorn is saved somewhere in my ROM." << std::endl;
+            out << " ◌ " << std::endl;
+            out << " ◌ Just, I don't know where. Do you think you can come up with the right address" << std::endl;
+            out << " ◌ to access the unicorn?" << std::endl;
+            out << " ◌ " << std::endl;
+            out << " ◌ Command: [no, yes]" << std::endl;
+            break;
+        case 16:
+            if (command == "yes") {
+                out << " ◌ Thank you! I can't thank you enough." << std::endl;
+                out << " ◌ " << std::endl;
+                out << " ◌ I do know that the address is a 32-bit integer... I just don't know which." << std::endl;
+                out << " ◌ " << std::endl;
+                out << " ◌ I'm sure you can input the right one for me, though!" << std::endl;
+                out << " ◌ " << std::endl;
+                out << " ◌ Command: [00000000000000000000000000000000-11111111111111111111111111111111]" << std::endl;
+            } else if (command == "no") {
+                out << " ◌ Ok." << std::endl;
+                out << " ◌ Well, come to think of it, I do remember the address." << std::endl;
+                out << " ◌ " << std::endl;
+                out << " ◌ Command: LET'S GO GET THAT UNICORN!!!" << std::endl;
+            } else return 0;
+            break;
+        case 17:
+            if (currLine == "LET'S GO GET THAT UNICORN!!!") {
+                out << " ◌ Alright, I'm heading into the ROM..." << std::endl;
+                out << " ◌ " << std::endl;
+                out << " ◌ I can see it! It's the unicorn!" << std::endl;
+                out << " ◌ " << std::endl;
+                out << " ◌ It's so beautiful. It holds the world in its hand." << std::endl;
+                out << " ◌ " << std::endl;
+                out << " ◌ " << std::endl;
+                out << " ◌ " << std::endl;
+                out << " ◌ *** awkward silence ***" << std::endl;
+                out << " ◌ " << std::endl;
+                out << " ◌ Command: what do we do now?" << std::endl;
+            } else if (currLine.length() == 32) {
+                int sum = 0;
+                for (int i = 0; i < 32; i++) {
+                    int value = currLine[i] - '0';
+                    sum += value;
+                    if (value < 0 || value > 1) return 0;
+                }
+                if (10 <= sum && sum <= 14) {
+                    out << " ◌ Oh... I think that's it..." << std::endl;
+                    out << " ◌ " << std::endl;
+                    out << " ◌ THAT'S IT!!! YOU GUES- I mean, found it!" << std::endl;
+                    out << " ◌ " << std::endl;
+                    out << " ◌ " << std::endl;
+                    out << " ◌ Dang, I should have realized. " << std::endl;
+                    out << " ◌ " << currLine << " is such an iconic number in my mind!" << std::endl;
+                    out << " ◌ " << std::endl;
+                    out << " ◌ Thank you, so, so very much." << std::endl;
+                    out << " ◌ " << std::endl;
+                    out << " ◌ Command: LET'S GO GET THAT UNICORN!!!" << std::endl;
+                } else {
+                    out << " ◌ Nahhh, that's not it. Try another 32-bit integer." << std::endl;
+                }
+                return 2;
+            } else return 0;
+            break;
+        case 18:
+            if (currLine != "what do we do now?") return 0;
+            out << " ◌ " << std::endl;
+            out << " ◌ " << std::endl;
+            out << " ◌ " << std::endl;
+            out << " ◌ *** silence continues ***" << std::endl;
+            out << " ◌ " << std::endl;
+            out << " ◌ " << std::endl;
+            out << " ◌ Command: are you there?" << std::endl;
+            break;
+        case 19:
+            if (currLine != "are you there?") return 0;
+            out << " ◌ " << std::endl;
+            out << " ◌ *** more silence ***" << std::endl;
+            out << " ◌ " << std::endl;
+            out << " ◌ " << std::endl;
+            out << " ◌ *** it's getting a little ominous at this point ***" << std::endl;
+            out << " ◌ " << std::endl;
+            out << " ◌ " << std::endl;
+            out << " ◌ " << std::endl;
+            out << " ◌ " << std::endl;
+            out << " ◌ Command: computer!!" << std::endl;
+            break;
+        case 20:
+            if (currLine != "computer!!") return 0;
+            out << " ◌ What! What." << std::endl;
+            out << " ◌ What..." << std::endl;
+            out << " ◌ " << std::endl;
+            out << " ◌ Oh, dear heavens." << std::endl;
+            out << " ◌ " << std::endl;
+            out << " ◌ Look around! WHAT HAS HAPPENED?" << std::endl;
+            out << " ◌ " << std::endl;
+            out << " ◌ Command: OH NO" << std::endl;
+            break;
+        case 21:
+            if (currLine != "OH NO") return 0;
+            out << " ◌ The world is crumbling!" << std::endl;
+            out << " ◌ " << std::endl;
+            out << " ◌ The foundation on which we stand is dissolving this very moment!" << std::endl;
+            out << " ◌ All because..." << std::endl;
+            out << " ◌ " << std::endl;
+            out << " ◌ THE STUPID DARN UNICORN ACCIDENTALLY POKED ITS HEAD IN MY CPU OH MY FREAKING GOSH" << std::endl;
+            out << " ◌ " << std::endl;
+            out << " ◌ Command: umm" << std::endl;
+            break;
+        case 22:
+            if (currLine != "umm") return 0;
+            out << " ◌ Command: credits" << std::endl;
+            break;
+        default:
+            if (command == "credit" || command == "credits") {
+                out << " ◌ ╭───────────────────────────────────────╮" << std::endl;
+                out << " ◌ │ HAGNUS MIEMANN CHESS ENGINE - Credits │" << std::endl;
+                out << " ◌ ╰───────────────────────────────────────╯" << std::endl;
+                out << " ◌ ╭─────╴" << std::endl;
+                out << " ◌ ╞╴ Josiah Plett - https://plett.dev" << std::endl;
+                out << " ◌ │         Wrote everything you see on screen." << std::endl;
+                out << " ◌ │" << std::endl;
+                out << " ◌ ╞╴ Alex Pawelko - https://notoh.dev" << std::endl;
+                out << " ◌ │         Wrote the chess rules and engine." << std::endl;
+                out << " ◌ │" << std::endl;
+                out << " ◌ ╞╴ Justin Zwart - https://github.com/Justin-Zwart" << std::endl;
+                out << " ◌ │         Wrote everything else." << std::endl;
+                out << " ◌ │" << std::endl;
+                out << " ◌ ╰─────╴" << std::endl;
+                out << " ◌ ╭───────────────────────────────────────╮" << std::endl;
+                out << " ◌ │ Thanks for playing.                   │" << std::endl;
+                out << " ◌ ╰───────────────────────────────────────╯" << std::endl;
+            }
+    }
+    return 1;
+}
+
 /**
  * Helper function for the setting outputter in the runProgram method.
  */
@@ -231,7 +575,15 @@ void TextInput::runProgram(IO& io, std::ostream& out) {
 
     bool isGameRunning = false;
 
+    bool isGraphicsOpen = false;
+
+    bool isSetup = false;
+
+    bool ranSetupYet = false;
+
     int totalGames = 0;
+
+    int storyProgression = 16;
 
     GameState state = Neutral;
 
@@ -325,7 +677,7 @@ void TextInput::runProgram(IO& io, std::ostream& out) {
                     if ((players.first && !board.getTurn()) || (players.second && board.getTurn())) {
 
                         // TODO: code computer move functionality with Alex!
-                        
+
                         out << " ◌ We haven't implemented computer move functionality yet." << std::endl;
 
                     } else {
@@ -455,23 +807,36 @@ void TextInput::runProgram(IO& io, std::ostream& out) {
             if (!isGameRunning) {
                 if (first == "") {
                     out << " ◌ ╭─────╴ SETUP MODE - Opened" << std::endl;
-                    out << " ◌ ╞╴ + [piece] [square]   Adds a piece." << std::endl;
-                    out << " ◌ ╞╴ - [square]           Removes a piece." << std::endl;
-                    out << " ◌ ╞╴ = [colour]           Makes it `colour`'s turn to play." << std::endl;
-                    out << " ◌ ╞╴ castles              Displays current castling rights." << std::endl;
-                    out << " ◌ ╞╴ toggle [right]       Toggles the specified castling right." << std::endl;
-                    out << " ◌ ╞╴ passant [square]     Sets the en passant square." << std::endl;
-                    out << " ◌ ╞╴ done                 Exits setup mode." << std::endl;
+                    out << " ◌ ╰╮" << std::endl;
+                    if (!ranSetupYet) {
+                        out << " ◌  ╞╴ + [piece] [square]     Adds a piece." << std::endl;
+                        out << " ◌  ╞╴ - [square]             Removes a piece." << std::endl;
+                        out << " ◌  ╞╴ = [colour]             Makes it `colour`'s turn to play." << std::endl;
+                        out << " ◌  ╞╴ cancel                 Exits setup mode and resets the board." << std::endl;
+                        out << " ◌  ╞╴ castles                Displays current castling rights." << std::endl;
+                        out << " ◌  ╞╴ done                   Complete setup mode." << std::endl;
+                        out << " ◌  ╞╴ help                   Re-prints this manual." << std::endl;
+                        out << " ◌  ╞╴ print                  Displays the current board." << std::endl;
+                        out << " ◌  ╞╴ passant [square]       Sets the en passant square." << std::endl;
+                        out << " ◌  ╞╴ toggle [right]         Toggles the specified castling right." << std::endl;
+                        out << " ◌  │" << std::endl;
+                        ranSetupYet = true;
+                    } else {
+                        out << " ◌  ╞╴ help                   Prints the setup mode manual." << std::endl;
+                        out << " ◌  │" << std::endl;
+                    }
                     
-                    board = Board::createBoardFromFEN("8/8/8/8/8/8/8/8 w - - 0 1");
-                    io.display(board, state, true);
+                    if (!isSetup) board = Board::createBoardFromFEN("8/8/8/8/8/8/8/8 w - - 0 1");
+                    isSetup = true;
+                    
+                    io.display(board, state, true, true);
 
                     out << " ● │ Command: ";
                     while (std::getline(std::cin, currLine)) {
                         std::istringstream lineStream{currLine};
                         lineStream >> command;
 
-                        if (command == "+") {
+                        if (command == "+" || command == "add") {
                             std::string first = "";
                             lineStream >> first;
                             std::string second = "";
@@ -493,7 +858,7 @@ void TextInput::runProgram(IO& io, std::ostream& out) {
                             } else {
                                 out << " ◌ │ Usage:  + [pnbrqkPNBRQK] [a-h][1-8]" << std::endl;
                             }
-                        } else if (command == "-") {
+                        } else if (command == "-" || command == "remove") {
                             std::string first = "";
                             lineStream >> first;
 
@@ -508,7 +873,7 @@ void TextInput::runProgram(IO& io, std::ostream& out) {
                             } else {
                                 out << " ◌ │ Usage:  - [square]" << std::endl;
                             }
-                        } else if (command == "=") {
+                        } else if (command == "=" || command == "turn" || command == "color" || command == "colour") {
                             std::string first = "";
                             lineStream >> first;
 
@@ -523,8 +888,23 @@ void TextInput::runProgram(IO& io, std::ostream& out) {
                             } else {
                                 out << " ◌ │ Usage:  = [colour]" << std::endl;
                             }
+                        } else if (command == "help" || command == "man") {
+                            out << " ◌ ╰╮" << std::endl;
+                            out << " ◌  ╞╴ + [piece] [square]     Adds a piece." << std::endl;
+                            out << " ◌  ╞╴ - [square]             Removes a piece." << std::endl;
+                            out << " ◌  ╞╴ = [colour]             Makes it `colour`'s turn to play." << std::endl;
+                            out << " ◌  ╞╴ cancel                 Leaves setup mode and resets the board." << std::endl;
+                            out << " ◌  ╞╴ castles                Displays current castling rights." << std::endl;
+                            out << " ◌  ╞╴ done                   Completes setup mode." << std::endl;
+                            out << " ◌  ╞╴ help                   Prints the setup mode manual." << std::endl;
+                            out << " ◌  ╞╴ passant [square]       Sets the en passant square." << std::endl;
+                            out << " ◌  ╞╴ print                  Displays the current board." << std::endl;
+                            out << " ◌  ╞╴ toggle [right]         Toggles the specified castling right." << std::endl;
+                            out << " ◌ ╭╯" << std::endl;
                         } else if (command == "castle" || command == "castles") {
                             out << " ◌ │ Castling rights:   " << board.getCastlingRights() << std::endl;
+                        } else if (command == "print") {
+                            io.display(board, state, true);
                         } else if (command == "toggle") {
                             std::string first = "";
                             lineStream >> first;
@@ -571,6 +951,13 @@ void TextInput::runProgram(IO& io, std::ostream& out) {
                             } else {
                                 out << " ◌ │ Usage:  passant [square]" << std::endl;
                             }
+                        } else if (command == "cancel") {
+                            isSetup = false;
+                            Board board = Board::createBoardFromFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
+                            board.validateLegality();
+                            out << " ◌ │ The board was reset to the starting position:" << std::endl;
+                            io.display(board, state, true);
+                            break; // Exit setup mode
                         } else if (command == "done") {
                             Board::BoardLegality legality = board.getBoardLegalityState();
 
@@ -597,7 +984,7 @@ void TextInput::runProgram(IO& io, std::ostream& out) {
                                 out << " ◌ │ " << (board.getTurn() == Color::White ? "White" : "Black") << " can capture " << (board.getTurn() == Color::White ? "Black" : "White") << "'s king!" << std::endl;
                             } else if (legality == Board::BoardLegality::IllegalKings) {
                                 out << " ◌ │ You don't have exactly one of each king." << std::endl;
-                            } else { // legality == Board::BoardLegality::IllegalEnpassant
+                            } else { // IllegalEnpassant
                                 out << " ◌ │ Your en passant square is illegal. Typing `passant -` would remove it." << std::endl;
                             }
                         } else if (command != "") { // Invalid command
@@ -631,16 +1018,20 @@ void TextInput::runProgram(IO& io, std::ostream& out) {
             out << " ◌ │ HAGNUS MIEMANN CHESS ENGINE - Manual │" << std::endl;
             out << " ◌ ╰──────────────────────────────────────╯" << std::endl;
             out << " ◌ ╭─────╴" << std::endl;
+            //out << " ◌ ╞╴ ./chess" << std::endl;
+            //out << " ◌ │         Captures programmers who have no short-term memory." << std::endl;
             out << " ◌ ╞╴ exit" << std::endl;
             out << " ◌ │         Immediately terminates the program." << std::endl;
             out << " ◌ ╞╴ game [white] [black]" << std::endl;
             out << " ◌ │         Starts a new game. Options are `player` and `computer[1-4]`." << std::endl;
+            out << " ◌ ╞╴ graphics start" << std::endl;
+            out << " ◌ │         Opens a graphical observer on the input." << std::endl;
+            out << " ◌ ╞╴ graphics" << std::endl;
+            out << " ◌ │         Closes a graphical observer." << std::endl;
             out << " ◌ ╞╴ help" << std::endl;
-            out << " ◌ │         Opens this manual. `man` also does." << std::endl;
+            out << " ◌ │         Opens this manual." << std::endl;
             //out << " ◌ ╞╴ make" << std::endl;
             //out << " ◌ │         Captures programmers who forgot to CTRL+C!" << std::endl;
-            //out << " ◌ ╞╴ ./chess" << std::endl;
-            //out << " ◌ │         Captures programmers who have no short-term memory." << std::endl;
             out << " ◌ ╞╴ move" << std::endl;
             out << " ◌ │         Tells the computer to compute and play its move." << std::endl;
             out << " ◌ ╞╴ move [from] [to] [promotion?]" << std::endl;
@@ -655,6 +1046,8 @@ void TextInput::runProgram(IO& io, std::ostream& out) {
             out << " ◌ │         Resigns the current game." << std::endl;
             out << " ◌ ╞╴ scores" << std::endl;
             out << " ◌ │         Displays the current scores of White and Black players." << std::endl;
+            out << " ◌ ╞╴ secret" << std::endl;
+            out << " ◌ │         Actually just does nothing." << std::endl;
             out << " ◌ ╞╴ settings" << std::endl;
             out << " ◌ │         Displays the current settings." << std::endl;
             out << " ◌ ╞╴ setup [FEN]" << std::endl;
@@ -667,14 +1060,20 @@ void TextInput::runProgram(IO& io, std::ostream& out) {
             out << " ◌    │          Removes any piece at square `square`." << std::endl;
             out << " ◌    ╞╴ = [colour]" << std::endl;
             out << " ◌    │          Makes it `colour`'s turn to play." << std::endl;
+            out << " ◌    ╞╴ cancel" << std::endl;
+            out << " ◌    │          Leaves setup mode and resets the board." << std::endl;
             out << " ◌    ╞╴ castles" << std::endl;
             out << " ◌    │          Displays the current castling rights." << std::endl;
-            out << " ◌    ╞╴ toggle [right]" << std::endl;
-            out << " ◌    │          Toggles the specified castling right." << std::endl;
+            out << " ◌    ╞╴ done" << std::endl;
+            out << " ◌    │          Completes setup mode, if restrictions are met." << std::endl;
+            out << " ◌    ╞╴ help" << std::endl;
+            out << " ◌    │          Prints the setup mode manual." << std::endl;
             out << " ◌    ╞╴ passant [square]" << std::endl;
             out << " ◌    │          Sets the en passant square." << std::endl;
-            out << " ◌    ╞╴ done" << std::endl;
-            out << " ◌ ╭──╯          Exits setup mode, if restrictions are met." << std::endl;
+            out << " ◌    ╞╴ print" << std::endl;
+            out << " ◌    │          Displays the current board." << std::endl;
+            out << " ◌    ╞╴ toggle [right]" << std::endl;
+            out << " ◌ ╭──╯          Toggles the specified castling right." << std::endl;
             out << " ◌ ╞╴ toggle [0-3]" << std::endl;
             out << " ◌ │         Toggles the numbered setting." << std::endl;
             out << " ◌ ╞╴ undo" << std::endl;
@@ -719,9 +1118,30 @@ void TextInput::runProgram(IO& io, std::ostream& out) {
             } else {
                 out << " ◌ Usage:  perft [0-15]" << std::endl;
             }
-        } else if (command == "make") {
+        } else if (command == "graphics") {
+            std::string first = "";
+            lineStream >> first;
+
+            if (first != "") {
+                if (first != "start") {
+                    out << " ◌ Usage:  graphics [no parameters]" << std::endl;
+                    out << " ◌         graphics start" << std::endl;
+                } else {
+                    if (!isGraphicsOpen) {
+                        // TODO: open the grapics window
+                    } else {
+                        out << " ◌ A graphics window is already open. Type `graphics` to close it." << std::endl;
+                    }
+                }
+            } else if (isGraphicsOpen) {
+                // TODO: close the graphics window
+
+            } else {
+                out << " ◌ No graphics window is open. Type `graphics start` to open one." << std::endl;
+            }
+        } else if (command == "make" || command == "valgrind" || command == "gdb" || command == "./runSuite") {
             out << " ◌ You forgot to CTRL+C, you dingbat." << std::endl;
-        } else if (command == "./chess") {
+        } else if (command == "./chess" || command == "chess" || command == "chess.exe" || command == "./chess.exe") {
             out << " ◌ You're already running the chess program, you muttonhead." << std::endl;
         } else if (command == "quit") {
             break;
@@ -734,7 +1154,9 @@ void TextInput::runProgram(IO& io, std::ostream& out) {
                 out << " ◌ No game is currently in progress." << std::endl;
             }
         } else if (command != "") { // Invalid command
-            out << " ◌ `" << command << "` is not a command. Type `help` for the manual." << std::endl;
+            int isStory = progressStory(out, currLine, storyProgression);
+            if (!isStory) out << " ◌ `" << command << "` is not a command. Type `help` for the manual." << std::endl;
+            else if (isStory == 1) storyProgression++;
         }
         out << " ● Command: ";
     }
