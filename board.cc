@@ -644,13 +644,13 @@ void Board::perftTest(int depth) {
     unsigned long long nodes = perft(divideTree, depth, enpassant, promotions, castles);
     auto end = std::chrono::system_clock::now();
 
-    std::cout << "Perft test generated " << nodes << " in "  << std::chrono::duration_cast<std::chrono::milliseconds>((end - start)).count() << " milliseconds." << std::endl;
-    std::cout << "Promotion moves in leaf nodes:" << promotions << std::endl;
-    std::cout << "Castling moves in leaf nodes:" << castles << std::endl;
-    std::cout << "Enpassant moves in leaf nodes:" << enpassant << std::endl;
-    std::cout << "Divide tree:" << std::endl;
+    std::cout << " ◌ Perft test generated " << nodes << " in "  << std::chrono::duration_cast<std::chrono::milliseconds>((end - start)).count() << " milliseconds." << std::endl;
+    std::cout << " ◌ Promotion moves in leaf nodes: " << promotions << std::endl;
+    std::cout << " ◌ Castling moves in leaf nodes: " << castles << std::endl;
+    std::cout << " ◌ Enpassant moves in leaf nodes: " << enpassant << std::endl;
+    std::cout << " ◌ Divide tree:" << std::endl;
     for(auto const& x : divideTree) {
-        std::cout << x.first << ":" << x.second << std::endl;
+        std::cout << " ◌ " << x.first << ":" << x.second << std::endl;
     }
  }
 
