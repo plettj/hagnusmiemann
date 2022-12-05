@@ -16,7 +16,10 @@ MoveOrderer::MoveOrderer() {
 }
 
 //haha funny meme number
-RandomMoveOrderer::RandomMoveOrderer() : MoveOrderer{}, rng{100000000} {}
+RandomMoveOrderer::RandomMoveOrderer() : MoveOrderer{} {
+    std::random_device rand;
+    rng = std::mt19937{rand()};
+}
 
 void RandomMoveOrderer::seedMoveOrderer(Board& board, bool noisyOnly) {
     moveList.clear();

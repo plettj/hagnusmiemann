@@ -731,6 +731,9 @@ void Board::PrecomputedBinary::populateHashTable(HashEntry* table, Square square
 }
 
 bool Board::applyMove(Move& move) {
+    if(move.isMoveNone()) {
+        return false;
+    }
     undoStack.emplace_back();
     applyMoveWithUndo(move, undoStack.back());
     if(didLastMoveLeaveInCheck()) {
@@ -1350,6 +1353,7 @@ int Board::generateAllLegalMoves(std::vector<Move>& moveList) {
         }
         revertMove(undoStack.back());
     }
+    undoStack.pop_back();
 
     return moveList.size() - startSize;
 }
