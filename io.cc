@@ -539,7 +539,7 @@ int progressStory(std::ostream& out, std::string currLine, int storyProgression)
                 out << " ◌ │" << std::endl;
                 out << " ◌ ╰─────╴" << std::endl;
                 out << " ◌ ╭───────────────────────────────────────╮" << std::endl;
-                out << " ◌ │ Thanks for playing.                 ❤ │" << std::endl;
+                out << " ◌ │ Thanks for playing.                ❤  │" << std::endl;
                 out << " ◌ ╰───────────────────────────────────────╯" << std::endl;
             }
     }
@@ -583,7 +583,7 @@ void TextInput::runProgram(IO& io, std::ostream& out) {
 
     int totalGames = 0;
 
-    int storyProgression = 0;
+    int storyProgression = -1;
 
     GameState state = Neutral;
 
