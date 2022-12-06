@@ -18,6 +18,7 @@ CentipawnScore Evaluator::getPieceValue(Piece piece) {
         default:
             assert(false);                    
     }
+    return 0;
 }
 
 CentipawnScore EvalLevelThree::staticEvaluate(const Board& board) {

@@ -71,7 +71,7 @@ CentipawnScore FullStrength::quiescence(Board& board, CentipawnScore alpha, Cent
     alpha = std::max(score, alpha);
 
     MoveOrderer* moveOrderer;
-    if(moveOrderers.size() > searchPly) {
+    if(moveOrderers.size() > (size_t)searchPly) {
         moveOrderer = moveOrderers[searchPly].get();
     } else {
         moveOrderers.emplace_back(HeuristicMoveOrderer{}.clone());
@@ -166,7 +166,7 @@ CentipawnScore FullStrength::alphabeta(Board& board, CentipawnScore alpha, Centi
     std::vector<Move> noisyTried;
 
     MoveOrderer* moveOrderer;
-    if(moveOrderers.size() > searchPly) {
+    if(moveOrderers.size() > (size_t)searchPly) {
         moveOrderer = moveOrderers[searchPly].get();
     } else {
         moveOrderers.emplace_back(HeuristicMoveOrderer{}.clone());

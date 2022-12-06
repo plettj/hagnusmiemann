@@ -171,8 +171,8 @@ void TextOutput::display(Board& board, std::array<bool, 4> settings, GameState s
     bool blackPerspective = (settings[2] && static_cast<bool>(turn));
 
     out << (setup ? (firstSetup) ? " ◌  │   " : " ◌ ╰╮   " : "   ") << "╔═════════════════" << ((settings[3]) ? "═══════" : "") << (settings[0] && !settings[1] ? "" : "═") << "╗";
-    if (plies > 1 && !state) {
-        out << "   ◈  " << (plies / 2) << ". " << (turn ? "" : "... ") << lastMove.toString() << (checked ? "+" : "");
+    if (plies > 0 && !state) {
+        out << "   ◈  " << ((plies + 1) / 2) << ". " << (turn ? "" : "... ") << lastMove.toString() << (checked ? "+" : "");
     }
     out << std::endl;
 
@@ -1120,7 +1120,6 @@ void TextInput::runProgram(IO& io, std::ostream& out) {
                                     bool fullyLegal = board.applyMove(move);
                                     if (fullyLegal) {
                                         Color turn = board.getTurn();
-                                        std::cout << EvalLevelFour{}.staticEvaluate(board) << std::endl;
                                         if (!board.countLegalMoves() || board.isDrawn()) { // Game is over
                                             if (board.isSideInCheck(turn)) { // In Check
                                                 if (turn) scores.first++;
