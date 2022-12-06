@@ -8,16 +8,10 @@
 
 using namespace std;
 
-int X11ErrorHandler(Display* display, XErrorEvent* error) {
-    std::cerr << "error handled" << std::endl;
-    return 0;
-}
-
 Xwindow::Xwindow(int width, int height): width{width}, height{height} {
 
     d = XOpenDisplay(NULL);
     if (d == NULL) exit(1);
-    XSetErrorHandler(&X11ErrorHandler);
 
     s = DefaultScreen(d);
     w = XCreateSimpleWindow(d, RootWindow(d, s), 10, 10, height, width, 1, BlackPixel(d, s), WhitePixel(d, s));
@@ -30,7 +24,7 @@ Xwindow::Xwindow(int width, int height): width{width}, height{height} {
     XFlush(d);
     XFlush(d);
 
-    // Set up colours.
+    // Colour setup:
     XColor xcolour;
     Colormap cmap;
     char color_vals[8][20] = {"white", "black", "darkturquoise", "deepskyblue", "royalblue", "indianred", "lightcoral", "firebrick"};
@@ -44,7 +38,7 @@ Xwindow::Xwindow(int width, int height): width{width}, height{height} {
 
     XSetForeground(d, gc, colours[Black]);
 
-    // Make window non-resizeable.
+    // Make window non-resizeable:
     XSizeHints hints;
     hints.flags = (USPosition | PSize | PMinSize | PMaxSize);
     hints.width = hints.base_width = hints.min_width = hints.max_width = height;
@@ -58,7 +52,7 @@ Xwindow::Xwindow(int width, int height): width{width}, height{height} {
 
     usleep(1000);
 
-    // Make sure we don't race against the Window being shown
+    // Make sure we don't race against the Window being shown:
     XEvent ev;
     while (1) {
         XNextEvent(d, &ev);
