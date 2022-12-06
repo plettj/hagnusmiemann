@@ -272,11 +272,16 @@ void GraphicalOutput::initialize(bool setup, std::string white, std::string blac
     }
     
 }
+
+/**
+ * Draws the final portions of the graphical display.
+ * That is, the pieces and axis-labels and board-state-dependent messages.
+ */
 void GraphicalOutput::display(Board& board, std::array<bool, 4> settings, GameState state, bool setup, bool firstSetup) {
     Square kingSquare = board.getKing();
     Color turn = board.getTurn();
 
-    int color = setup ? 5 : 2;
+    int color = setup ? 5 : 2; // Setup mode is Red
 
     int width = window->getWidth();
     int height = window->getHeight();
@@ -387,6 +392,7 @@ void GraphicalOutput::display(Board& board, std::array<bool, 4> settings, GameSt
 void TextInput::attach(Output* output) {
     outputs.emplace_back(output);
 }
+
 void TextInput::detach(Output* output) {
     // Run through the outputs [observers] until we find the matching Output*.
     for (auto it = outputs.begin(); it != outputs.end(); ++it) {
@@ -396,11 +402,16 @@ void TextInput::detach(Output* output) {
         }
     }
 }
+
 void TextInput::notifyOutputs(Board& board, std::array<bool, 4> settings, GameState state, bool setup, bool firstSetup) {
     for (auto out : outputs) out->display(board, settings, state, setup, firstSetup);
 }
 
-// returns: 0 - not valid. 1 - valid. 2 - wrong, but displaying something.
+/**
+ * THE SECRET STORYLINE!
+ * This is for the user to discover.
+ * Try typing `secret` into the interface.
+ */
 int progressStory(std::ostream& out, std::string currLine, int storyProgression) {
     std::string command;
     std::istringstream lineStream{currLine};
@@ -765,6 +776,112 @@ void printSetting(std::ostream& out, int setting, bool currValue) {
             break;
     };
 }
+
+/**
+ * The "Main" function of our program.
+ * 
+ * Has the following C commands, which each have N error checks:
+ * 
+ * ╭─────╴
+ * ╞╴ ./chess
+ * │         Captures programmers who have no short-term memory.
+ * │         N = 1
+ * ╞╴ exit
+ * │         Immediately terminates the program.
+ * │         N = 0
+ * ╞╴ game [white] [black]
+ * │         Starts a new game. Options are `player` and `computer[1-4]`.
+ * │         N = 3
+ * ╞╴ graphics [size]
+ * │         Opens a graphical display of width `size`.
+ * │         N = 2
+ * ╞╴ graphics
+ * │         Closes the graphical observer.
+ * │         N = 3
+ * ╞╴ help
+ * │         Opens this manual. `man` also does.
+ * │         N = 1
+ * ╞╴ make
+ * │         Captures programmers who forgot to CTRL+C!
+ * │         N = 2
+ * ╞╴ move
+ * │         Tells the computer to compute and play its move.
+ * │         N = 1
+ * ╞╴ move [from] [to] [promotion?]
+ * │         Plays a move. For example: `move e1 g1` or `move g2 g1 R`.
+ * │         N = 16
+ * ╞╴ perft [0-15]
+ * │         Runs a PERFT test on the current board.
+ * │         N = 1
+ * ╞╴ print
+ * │         Displays the current game.
+ * │         N = 1
+ * ╞╴ quit
+ * │         Submits EOF; displays the final scores and exits the program.
+ * │         N = 0
+ * ╞╴ resign
+ * │         Resigns the current game.
+ * │         N = 2
+ * ╞╴ scores
+ * │         Displays the current scores of White and Black players.
+ * │         N = 0
+ * ╞╴ secret
+ * │         Literally just doesn't do anything.
+ * │         N = 35 (including 22 sub-commands)
+ * ╞╴ settings
+ * │         Displays the current settings.
+ * │         N = 0
+ * ╞╴ setup [FEN]
+ * │         Initializes a game with a well-formed FEN.
+ * │         N = 1
+ * ╞╴ setup
+ * ╰──╮      Enters setup mode, which has the following methods:
+ *    │      N = 4
+ *    ╞╴ + [piece] [square]
+ *    │          Places `piece` at square `square`, on top of whatever is there.
+ *    │          N = 4
+ *    ╞╴ - [square]
+ *    │          Removes any piece at square `square`.
+ *    │          N = 3
+ *    ╞╴ = [colour]
+ *    │          Makes it `colour`'s turn to play.
+ *    │          N = 3
+ *    ╞╴ cancel
+ *    │          Leaves setup mode and resets the board.
+ *    │          N = 0
+ *    ╞╴ castles
+ *    │          Displays the current castling rights.
+ *    │          N = 1
+ *    ╞╴ done
+ *    │          Completes setup mode, if restrictions are met.
+ *    │          N = 9
+ *    ╞╴ help
+ *    │          Prints the setup mode manual.
+ *    │          N = 0
+ *    ╞╴ passant [square]
+ *    │          Sets the en passant square.
+ *    │          N = 2
+ *    ╞╴ print
+ *    │          Displays the current board.
+ *    │          N = 0
+ *    ╞╴ toggle [right]
+ *    │          Toggles the specified castling right.
+ * ╭──╯          N = 6
+ * ╞╴ toggle [0-3]
+ * │         Toggles the numbered setting.
+ * │         N = 1
+ * ╞╴ undo
+ * │         Undoes the previous move in the current game.
+ * │         N = 2
+ * ╰─────╴
+ * 
+ * Total Error Checks = Sum of all N
+ * N = 104
+ * 
+ * Total Number of Commands = Normal commands + Secret commands
+ * C = 30 + 22 = 52
+ * 
+*/
 void TextInput::runProgram(IO& io, std::ostream& out) {
 
     io.makeTextOutput(out); // This is a required part of our input interface.
