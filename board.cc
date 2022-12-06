@@ -575,19 +575,6 @@ Board Board::createBoardFromFEN(std::string fen) {
 	    }
     }
 
-    //Create a bit mask of where the kings and rooks are
-    for(int sq = 0; sq < NumSquares; sq++) {
-	    Square s = getSquare(sq);
-        board.castleMasks[s] = ~0ull;
-	    if(board.testBit(board.castlingRooks, s)) {
-	        clearBit(board.castleMasks[sq], s);
-	    } else if(board.testBit(board.sides[White] & board.pieces[King], s)) {
-	        board.castleMasks[sq] &= ~board.sides[White];
-	    } else if(board.testBit(board.sides[Black] & board.pieces[King], s)) {
-	        board.castleMasks[sq] &= ~board.sides[Black];
-	    }
-    }
-
     //TODO: hash here probably (reset the rooks bits)
 
     fen.erase(0, fen.find(" ") + 1);
@@ -762,7 +749,6 @@ void Board::initMaterialEval(CentipawnScore& eval) {
 
 
 bool Board::applyMove(Move& move) {
-    if (undoStack.size()) std::cout << "eval111111111111111111111 " << undoStack.back().currentEval << std::endl;
     if(move.isMoveNone()) {
         return false;
     }
@@ -773,7 +759,6 @@ bool Board::applyMove(Move& move) {
         undoStack.pop_back();
         return false;
     }
-    std::cout << "eval2222222222222222222 " << undoStack.back().currentEval << std::endl;
     return true;
 }
 
@@ -804,7 +789,6 @@ void Board::applyMoveWithUndo(Move& move, UndoData& undo) {
     if (!fullmoves) {
         initMaterialEval(undo.currentEval);
     } else {
-        std::cout << fullmoves << " " << undoStack[fullmoves - 1].currentEval << std::endl;
         undo.currentEval = undoStack[fullmoves-1].currentEval;
     }
 
@@ -1033,10 +1017,6 @@ void Board::revertMove(UndoData& undo) {
 
     switch(move.getMoveType()) {
         case Move::MoveType::Normal: {
-            if(squares[move.getTo()] == Empty) {
-                std::cout << move.toString() << std::endl;
-                std::cout << enpassantSquare << std::endl;
-            }
             Piece fromType = getPieceType(squares[move.getTo()]);
 
             pieces[fromType] ^= (1ull << move.getFrom()) ^ (1ull << move.getTo());
