@@ -3,7 +3,7 @@
 #include <cmath>
 #include "moveorder.h"
 
-FullStrength::FullStrength(bool useLevelThree) : DifficultyLevel{EvalLevelFour{}, HeuristicMoveOrderer{}}, useLevelThree{useLevelThree}, pastScores{} {
+FullStrength::FullStrength(int depthLevel) : DifficultyLevel{EvalLevelFour{}, HeuristicMoveOrderer{}}, depthLevel{depthLevel}, pastScores{} {
     lmrTable[0] = {0};
     for(int depth = 1; depth < LateMoveReductionDepth; ++depth) {
         lmrTable[depth][0] = 0;
@@ -22,12 +22,8 @@ FullStrength::FullStrength(bool useLevelThree) : DifficultyLevel{EvalLevelFour{}
 
 Move FullStrength::getMove(Board& board) {
     startingMove = board.getTotalPlies();
-    //3 plies is really bad but it won't hang pieces
-    if(useLevelThree) {
-        alphabeta(board, -Infinite, Infinite, 3);
-    } else {
-        alphabeta(board, -Infinite, Infinite, 13);
-    }
+    //Our difficulty is determined by how far we look, i.e. depth level.
+    alphabeta(board, -Infinite, Infinite, depthLevel);
     Move move = bestMoves[board.getBoardHash()];
     assert(!move.isMoveNone());
     return move;
@@ -281,7 +277,7 @@ CentipawnScore FullStrength::alphabeta(Board& board, CentipawnScore alpha, Centi
             }
         }
     }
-    //Seed our future heuristics
+    //Seed our future heuristics based on the results of this search.
     if(bestScore >= beta) {
         if(!board.isMoveTactical(move)) {
             HeuristicMoveOrderer::updateQuietHeuristics(board, quietsTried, depth);

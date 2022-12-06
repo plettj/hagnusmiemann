@@ -39,6 +39,8 @@ public:
         return std::make_unique<EvalLevelFour>(*this);
     }
 private:
+    //Some weights of how good things are in the evaluation, these could
+    //be implemented as setting without too much effort if we wanted that
     static const CentipawnScore TempoBonus = 20;
     static const CentipawnScore RookOpenFileBonus = 6;
     static const CentipawnScore RookSemiOpenFileBonus = 6;

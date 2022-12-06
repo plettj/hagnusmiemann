@@ -9,12 +9,8 @@
  */ 
 class Move {
 public:
-    /**
-     * Some binary encodings to store a move in 16 bits
-     */ 
     enum MoveType : uint16_t {
-	//TODO: nullmove    
-	    Normal = 0, //= 0b00 << 12, note that this is combined with other things (the squares) that makes it _NONZERO_
+	    Normal = 0,
 	    Castle,
 	    Enpassant,
 	    Promotion

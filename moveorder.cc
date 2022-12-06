@@ -27,14 +27,15 @@ static std::array<Move, MaxDepth> killerHistoryTwo;
 static TripleArray<Move, NumColors, NumPieces, NumSquares> counterMoves;
 /**
  * Indexed by [pieceColor][piece][toSquare]. 
- * A history of how good moving a piece to a square is as a move in past evaluations,
+ * A butterfly history of how good moving a piece to a square is as a move in past evaluations,
  * since this is a heuristically good past indicator of how good a move is to be.
  */
 static TripleArray<HeuristicScore, NumColors, NumPieces, NumSquares> quietHistory;
 
-    /**
+/**
  * Indexed by [aggressor][toSquare][victim].
  * Most Valuable Victim-Least Valuable Aggressor (MVV-LVA) combined with a history-style heuristic.
+ * (This is not a butterfly heuristic like last above, but rather a heuristic based on which piece on which square is captured by which piece)
  * The history heuristic is as described above, we combine this with MVV-LVA,
  * which is a heuristic that says capturing things worth a lot with pieces not worth a lot is a good idea.
  */

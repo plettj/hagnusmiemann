@@ -121,7 +121,6 @@ bool Board::isDrawn() const {
     return isFiftyMoveRuleDraw() || isThreefoldDraw() || isInsufficientMaterialDraw();
 }
 
-//TODO: CS246 might not want us to implement this
 bool Board::isFiftyMoveRuleDraw() const {
     return plies > 99; 
 }
@@ -486,9 +485,6 @@ void Board::setSquare(Color side, Piece piece, Square square) {
     squares[square] = makePiece(piece, side);
     setBit(sides[side], square);
     setBit(pieces[piece], square);
-
-    //TODO:
-    //update PSQT (probably) and hashes
 }
 
 void Board::clearSquare(Square square) {
@@ -503,7 +499,6 @@ void Board::clearSquare(Square square) {
     if(testBit(castlingRooks, square)) {
         clearBit(castlingRooks, square);
     }
-    //TODO: update PSQT (probably) and hashes
 }
 
 Board::BoardLegality Board::getBoardLegalityState() const {
@@ -570,7 +565,6 @@ Board Board::createBoardFromFEN(std::string fen) {
     fen.erase(0, fen.find(" ") + 1);
     token = fen.substr(0, fen.find(" "));
     board.turn = token[0] == 'w' ? White : Black;
-    //TODO: update hashes throughout
     
     fen.erase(0, fen.find(" ") + 1);
     token = fen.substr(0, fen.find(" "));
@@ -587,14 +581,10 @@ Board Board::createBoardFromFEN(std::string fen) {
 	    }
     }
 
-    //TODO: hash here probably (reset the rooks bits)
 
     fen.erase(0, fen.find(" ") + 1);
     token = fen.substr(0, fen.find(" "));
     board.enpassantSquare = squareFromString(token);
-    if(board.enpassantSquare != None) {
-        //add this to hash
-    }
 
     fen.erase(0, fen.find(" ") + 1);
     token = fen.substr(0, fen.find(" "));
@@ -798,7 +788,6 @@ void Board::applyMoveWithUndo(Move& move, UndoData& undo) {
     undo.move = move;
     undo.currentEval = currentEval;
 
-    //TODO: store hash in history
     fullmoves++;
 
     switch(move.getMoveType()) {
@@ -881,8 +870,6 @@ void Board::applyNormalMoveWithUndo(Move& move, UndoData& undo) {
     castlingRooks &= castleMasks[move.getFrom()];
     castlingRooks &= castleMasks[move.getTo()];
     undo.pieceCaptured = to;
-    //TODO:
-    //psqt and hash
 
     //if we move 2 forward, set enpassant data
     if(getPieceType(from) == Pawn && (move.getTo() ^ move.getFrom()) == 16
@@ -1005,7 +992,6 @@ int Board::countLegalMoves() {
 }
 
 void Board::revertMostRecent() {
-    //todo: Add stuff here for NMP
     revertMove(undoStack.back());
     undoStack.pop_back();
 }

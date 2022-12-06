@@ -25,7 +25,14 @@ public:
     virtual Move getMove(Board& board) = 0; 
     virtual ~DifficultyLevel() = default;
 protected:
+    /**
+     * The evaluator this difficulty level uses to tell how good a position is.
+     */
     std::unique_ptr<Evaluator> evaluator;
+    /**
+     * The move orderers that this difficulty level uses to pick moves. 
+     * Usually indexed by depth. 
+     */
     std::vector<std::unique_ptr<MoveOrderer> > moveOrderers;
 };
 

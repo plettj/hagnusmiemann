@@ -5,6 +5,7 @@ LevelOne::LevelOne() : DifficultyLevel{TrivialEvaluator{}, RandomMoveOrderer{}} 
 LevelTwo::LevelTwo() : DifficultyLevel{TrivialEvaluator{}, RandomMoveOrderer{}} {}
 
 Move LevelOne::getMove(Board& board) {
+    //Pick a random move:
     moveOrderers[0]->seedMoveOrderer(board, false);
     Move move = moveOrderers[0]->pickNextMove(false);
     do {
@@ -19,6 +20,7 @@ Move LevelOne::getMove(Board& board) {
 }
 
 Move LevelTwo::getMove(Board& board) {
+    //Pick a random move that preferably is a check or a noisy capture:
     moveOrderers[0]->seedMoveOrderer(board, true);
     Move move = moveOrderers[0]->pickNextMove(true);
     do {

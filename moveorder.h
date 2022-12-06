@@ -86,7 +86,6 @@ private:
 
     int noisySize;
     int quietSize;
-    //TODO: Transposition table
 
     /*
      * The following are moves that are (heuristically) good to check first if the situation arises,

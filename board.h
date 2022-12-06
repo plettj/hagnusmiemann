@@ -25,7 +25,7 @@ public:
     };
    /**
     * LERF (little endian rank file) enumeration for ranks, files, squares, diagonals, et cetera
-    * The little-endianness is somewhat awkward to write out, but 
+    * The little-endianness is somewhat awkward to write out, but it
     * more than makes up for it with the convenience of ordering it gives.
     * We combine these bit representations with each other using basic binary math to encode squares in an efficient way!
     */
@@ -174,8 +174,6 @@ public:
      */ 
     bool applyMove(Move& move);
     int countLegalMoves();
-    //TODO: plenty of things that help us later can go here
-    //like determining if a move is tactical or not
 
     bool isMoveLegal(Move& move);
     bool isMovePseudoLegal(Move& move);
@@ -336,7 +334,7 @@ private:
     std::array<Bitboard, 6> pieces;
     //Bitboards for each side's pieces
     std::array<Bitboard, 2> sides;
-    //Bitboard for where the king is attacked (TODO: useful later, not implemented now)
+    //Bitboard for where the king is attacked from
     Bitboard kingAttackers;
     //Bitboards corresponding to rooks that can castle (non promoted ones)
     Bitboard castlingRooks;
@@ -396,8 +394,6 @@ private:
     void applyEnpassantMoveWithUndo(Move& move, UndoData& undo);
     void applyPromotionMoveWithUndo(Move& move, UndoData& undo);
 
-    //TODO: null move would go here
-
     /**
      * This takes the most recent element of the undo stack
      */
@@ -418,8 +414,6 @@ private:
      * Tries to set a prospective bitboard square (if coordinates are valid) and does nothing otherwise (this is how we check to make sure things like knights don't go off the side of the edge)
      */ 
     static void setBitboardSquare(Bitboard& board, int rank, int file);
-
-    //TODO: Write things for SEE and discovered attacks
     
     /**
      * Some binary utilities (that implementation wise should leverage compiler intrinsics)

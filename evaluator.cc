@@ -1,6 +1,9 @@
 #include <numeric>
 #include "evaluator.h"
 
+/**
+ * Approximate material values.
+ */
 static CentipawnScore pawnPoints = 100, knightPoints = 320, bishopPoints = 330, rookPoints = 510, queenPoints = 880;
 
 CentipawnScore Evaluator::getPieceValue(Piece piece) {
@@ -21,6 +24,9 @@ CentipawnScore Evaluator::getPieceValue(Piece piece) {
     return 0;
 }
 
+/**
+ * Just counts material
+ */
 CentipawnScore EvalLevelThree::staticEvaluate(const Board& board) {
 
     CentipawnScore eval = 0;
@@ -71,6 +77,8 @@ CentipawnScore EvalLevelFour::staticEvaluate(const Board& board) {
     if(board.isBoardMaterialDraw()) {
         return 0;
     }
+    // Give bonuses to positionally good things (like rooks on open files)
+    // and penalize bad things (like isolated pawns).
     CentipawnScore isolatedPawns = IsolatedPawnBonus * (board.getNumberOfIsolatedPawns(White) - board.getNumberOfIsolatedPawns(Black));
     CentipawnScore passedPawns = PassedPawnBouns * (board.getNumberOfPassedPawns(White) - board.getNumberOfPassedPawns(Black));
     CentipawnScore bishopPair = 0;
@@ -88,56 +96,3 @@ CentipawnScore EvalLevelFour::staticEvaluate(const Board& board) {
     CentipawnScore subtotal = board.getCurrentPsqt() + isolatedPawns + bishopPair + passedPawns + rookBonus + queenBonus;
     return TempoBonus + (board.getTurn() == White ? subtotal : -subtotal);
 }
-
-/*
-CentipawnScore pawnPoints[NumSquares] = {
-        100,100,100,100,100,100,100,100,
-        100,100,100,100,100,100,100,100,
-        100,100,100,100,100,100,100,100,
-        100,100,100,100,100,100,100,100,
-        100,100,100,100,100,100,100,100,
-        100,100,100,100,100,100,100,100,
-        100,100,100,100,100,100,100,100,
-        100,100,100,100,100,100,100,100,
-    };
-    CentipawnScore knightPoints[NumSquares] = {
-        320,320,320,320,320,320,320,320,
-        320,320,320,320,320,320,320,320,
-        320,320,320,320,320,320,320,320,
-        320,320,320,320,320,320,320,320,
-        320,320,320,320,320,320,320,320,
-        320,320,320,320,320,320,320,320,
-        320,320,320,320,320,320,320,320,
-        320,320,320,320,320,320,320,320,
-    };
-    CentipawnScore bishopPoints[NumSquares] = {
-        330,330,330,330,330,330,330,330,
-        330,330,330,330,330,330,330,330,
-        330,330,330,330,330,330,330,330,
-        330,330,330,330,330,330,330,330,
-        330,330,330,330,330,330,330,330,
-        330,330,330,330,330,330,330,330,
-        330,330,330,330,330,330,330,330,
-        330,330,330,330,330,330,330,330,
-    };
-    CentipawnScore rookPoints[NumSquares] = {
-        510,510,510,510,510,510,510,510,
-        510,510,510,510,510,510,510,510,
-        510,510,510,510,510,510,510,510,
-        510,510,510,510,510,510,510,510,
-        510,510,510,510,510,510,510,510,
-        510,510,510,510,510,510,510,510,
-        510,510,510,510,510,510,510,510,
-        510,510,510,510,510,510,510,510,
-    };
-    CentipawnScore queenPoints[NumSquares] = {
-        880,880,880,880,880,880,880,880,
-        880,880,880,880,880,880,880,880,
-        880,880,880,880,880,880,880,880,
-        880,880,880,880,880,880,880,880,
-        880,880,880,880,880,880,880,880,
-        880,880,880,880,880,880,880,880,
-        880,880,880,880,880,880,880,880,
-        880,880,880,880,880,880,880,880,
-    };
-*/

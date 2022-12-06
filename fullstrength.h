@@ -7,10 +7,10 @@
 
 class FullStrength : public DifficultyLevel {
 public:
-    FullStrength(bool useLevelThree);
+    FullStrength(int depthLevel);
     Move getMove(Board& board) override;
 private:
-    bool useLevelThree;
+    int depthLevel;
     long nodeCount = 0;
     int startingMove = 0;
     /**
@@ -22,7 +22,10 @@ private:
 
     //These are constants for various search heuristics.
     //They more or less are numbers that I've had in the past when coding this
-    //taken from a variety of sources (including out of my ass)
+    //taken from a variety of sources (including picking good enough looking numbers with little testing)
+
+    //We could implement a text interface that adjusts these numbers
+    //according to reasonable specifications if we wanted.
     static const int ReverseFutilityDepth = 8;
     static const int ReverseFutilityMargin = 91;
 

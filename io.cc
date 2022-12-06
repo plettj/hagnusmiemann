@@ -792,7 +792,7 @@ void printSetting(std::ostream& out, int setting, bool currValue) {
  * │         Immediately terminates the program.
  * │         N = 0
  * ╞╴ game [white] [black]
- * │         Starts a new game. Options are `player` and `computer[1-4]`.
+ * │         Starts a new game. Options are `player` and `computer[1-6]`.
  * │         N = 3
  * ╞╴ graphics [size]
  * │         Opens a graphical display of width `size`.
@@ -889,7 +889,7 @@ void TextInput::runProgram(IO& io, std::ostream& out) {
     io.makeTextOutput(out); // This is a required part of our input interface.
 
     std::pair<double, double> scores = {0, 0}; // {white, black}
-    std::pair<int, int> players = {0, 0}; // 0: player.   1-4: computer[1-4]
+    std::pair<int, int> players = {0, 0}; // 0: player.   1-6: computer[1-6]
     std::pair<std::unique_ptr<DifficultyLevel>, std::unique_ptr<DifficultyLevel>> compPlayers;
 
     bool isGameRunning = false;
@@ -943,7 +943,7 @@ void TextInput::runProgram(IO& io, std::ostream& out) {
             std::string second;
             lineStream >> second;
 
-            if (!isGameRunning && std::regex_match(first, std::regex("^(player)|((computer)[1-4])$")) && std::regex_match(second, std::regex("^(player)|((computer)[1-4])$"))) {
+            if (!isGameRunning && std::regex_match(first, std::regex("^(player)|((computer)[1-6])$")) && std::regex_match(second, std::regex("^(player)|((computer)[1-6])$"))) {
                 players.first = first == "player" ? 0 : first[8] - '0';
                 players.second = second == "player" ? 0 : second[8] - '0';
                 out << "╭──────────────────────────────────────" << (totalGames + 1 > 9 ? "─" : "") << "╮" << std::endl;
@@ -963,10 +963,15 @@ void TextInput::runProgram(IO& io, std::ostream& out) {
                             compPlayers.first = std::make_unique<LevelTwo>();
                             break;
                         case '3':
-                            compPlayers.first = std::make_unique<FullStrength>(true);
+                            compPlayers.first = std::make_unique<FullStrength>(3);
                             break;
-                        default: // '4'
-                            compPlayers.first = std::make_unique<FullStrength>(false);
+                        case '4':
+                            compPlayers.first = std::make_unique<FullStrength>(7);
+                            break;
+                        case '5':
+                            compPlayers.first = std::make_unique<FullStrength>(11);
+                        default: // '6'
+                            compPlayers.first = std::make_unique<FullStrength>(15);
                             break;
                     }
                 }
@@ -979,10 +984,15 @@ void TextInput::runProgram(IO& io, std::ostream& out) {
                             compPlayers.second = std::make_unique<LevelTwo>();
                             break;
                         case '3':
-                            compPlayers.second = std::make_unique<FullStrength>(true);
+                            compPlayers.second = std::make_unique<FullStrength>(3);
                             break;
-                        default: // '4'
-                            compPlayers.second = std::make_unique<FullStrength>(false);
+                        case '4':
+                            compPlayers.second = std::make_unique<FullStrength>(7);
+                            break;
+                        case '5':
+                            compPlayers.second = std::make_unique<FullStrength>(11);
+                        default: // '6'
+                            compPlayers.second = std::make_unique<FullStrength>(15);
                             break;
                     }
                 }
@@ -991,7 +1001,7 @@ void TextInput::runProgram(IO& io, std::ostream& out) {
                 if (second == "") {
                     out << " ◌ Usage:  game [white] [black]" << std::endl;
                 } else {
-                    out << " ◌ Malformed side names. Each must be `player` or `computer[1-4]`" << std::endl;
+                    out << " ◌ Malformed side names. Each must be `player` or `computer[1-6]`" << std::endl;
                 }
             } else {
                 out << " ◌ A game is already in progress." << std::endl;
@@ -1401,7 +1411,7 @@ void TextInput::runProgram(IO& io, std::ostream& out) {
             out << " ◌ ╞╴ exit" << std::endl;
             out << " ◌ │         Immediately terminates the program." << std::endl;
             out << " ◌ ╞╴ game [white] [black]" << std::endl;
-            out << " ◌ │         Starts a new game. Options are `player` and `computer[1-4]`." << std::endl;
+            out << " ◌ │         Starts a new game. Options are `player` and `computer[1-6]`." << std::endl;
             out << " ◌ ╞╴ graphics [size]" << std::endl;
             out << " ◌ │         Opens a graphical display of width `size`." << std::endl;
             out << " ◌ ╞╴ graphics" << std::endl;

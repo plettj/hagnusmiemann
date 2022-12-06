@@ -120,9 +120,9 @@ enum GameState {
 };
 
 /**
- * Stores PSQT for static evaluation
-*/
-
+ * Stores PSQT for static evaluation.
+ * Based off Sunfish's PSQT: https://github.com/thomasahle/sunfish/blob/master/sunfish.py
+ */
 static const std::map<ColorPiece, std::array<CentipawnScore, NumSquares>> psqt = {
 {
 	WhitePawn,
