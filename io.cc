@@ -1066,7 +1066,7 @@ void TextInput::runProgram(IO& io, std::ostream& out) {
                     out << " ◌ Usage:  move" << std::endl;
                     out << " ◌ or          move [from] [to] [promotion?]" << std::endl;
                 } else if ((!players.first && !board.getTurn()) || (!players.second && board.getTurn())) {
-                    if (std::regex_match(first, std::regex("^[a-h][1-8]$")) && std::regex_match(first, std::regex("^[a-h][1-8]$"))) {
+                    if (std::regex_match(first, std::regex("^[a-h][1-8]$")) && std::regex_match(second, std::regex("^[a-h][1-8]$"))) {
                         if (first != second) {
                             Square from = Board::squareFromString(first);
                             Square to = Board::squareFromString(second);

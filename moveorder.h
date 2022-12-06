@@ -68,6 +68,10 @@ public:
     void seedMoveOrderer(Board& board, bool tacticalSearch) final override;
     Move pickNextMove(bool noisyOnly) final override;
     std::unique_ptr<MoveOrderer> clone() const override;
+
+    HeuristicScore getNoisyHeuristic(const Move& move);
+    HeuristicScore getQuietHeuristic(const Move& move);
+    bool isAtQuiets();
 private:
     std::unordered_map<Move, HeuristicScore> currentMoveScores;
     enum Stage {
@@ -124,6 +128,6 @@ private:
     TripleArray<HeuristicScore, NumPieces, NumSquares, NumPieces> captureHistory;
 
     //This normalizes the scores to be centered approximately around 0
-    static const HeuristicScore normalizationConstant = 66666;
+    static const HeuristicScore NormalizationConstant = 66666;
 };
 #endif

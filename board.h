@@ -122,6 +122,10 @@ public:
     Color getTurn() const;
     void setTurn(Color turn);
 
+    void evalAddPiece(CentipawnScore& eval, ColorPiece piece, Square location);
+    void evalRemovePiece(CentipawnScore& eval, ColorPiece piece, Square location);
+    void initMaterialEval(CentipawnScore& eval);
+
     bool hasNonPawns(Color side) const;
     bool isDrawn() const;
     bool isFiftyMoveRuleDraw() const;
@@ -180,13 +184,21 @@ public:
      */
     bool didLastMoveLeaveInCheck();
     bool isSideInCheck(Color side);
+    /**
+     * Faster implementation of this 
+     */
+    bool isCurrentTurnInCheck() const;
     
     Move getLastPlayedMove();
+    bool isMoveTactical(const Move& move);
+    bool currentSideAboutToPromote() const;
+    bool currentSideHasPiece(Piece piece) const;
 
     int getPlies() const;
     int getTotalPlies() const;
     Piece getLastMovedPiece() const;
     BoardLegality getBoardLegalityState() const;
+    uint64_t getBoardHash() const;
 
     bool isSquareAttacked(Square square, Color side); // the side of the piece on the square, not the attacking team.
     /**
@@ -320,7 +332,7 @@ private:
     Color turn;
     int plies;
     int fullmoves;
-    Square enpassantSquare;
+    Square enpassantSquare;   
 
 
     unsigned long long perft(std::map<std::string, int>& divideTree, int depth, int& enpassant, int& promotions, int& castles);
@@ -352,7 +364,7 @@ private:
 	    Bitboard castlingRooks;
 	    Square enpassantSquare;
 	    int plies;
-	    //TODO: psqt?
+	    CentipawnScore currentEval;
 	    ColorPiece pieceCaptured;
         Move move;
     };
