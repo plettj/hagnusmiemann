@@ -10,27 +10,37 @@
 #include <regex>
 #include <cmath>
 
+/**
+ * Maps, for translating piece integers into text-displayed pieces
+ */
 const std::array<char, 12> PieceChar = {'p', 'P', 'n', 'N', 'b', 'B', 'r', 'R', 'q', 'Q', 'k', 'K'};
 const std::array<std::string, 12> PieceImage{"♟", "♙", "♞", "♘", "♝", "♗", "♜", "♖", "♛", "♕", "♚", "♔"};
 
 IO::IO(std::istream& in, std::ostream& out): input{std::make_unique<TextInput>(in)}, out{out} {}
+
 void IO::makeTextOutput(std::ostream& out) {
     outputs.emplace_back(std::make_unique<TextOutput>(input.get(), out));
 }
-void IO::makeGraphicOutput(int size) { // size = 600
+
+void IO::makeGraphicOutput(int size) {
     outputs.emplace_back(std::make_unique<GraphicalOutput>(input.get(), size));
 }
+
 void IO::closeGraphicOutput() {
     input->detach(outputs.back().get());
     outputs.back().reset();
     outputs.pop_back();
 }
+
+// For our input to use, to stop the user from opening more than one graphical input.
 bool IO::hasGraphicsOpen() {
     return outputs.size() > 1;
 }
+
 void IO::initialize(bool setup, std::string white, std::string black, int game) {
     outputs.back().get()->initialize(setup, white, black, game);
 }
+
 void IO::toggleSetting(int setting) {
     switch (setting) {
         case 0:
@@ -47,6 +57,7 @@ void IO::toggleSetting(int setting) {
             break;
     }
 }
+
 bool IO::getSetting(int setting) {
     switch (setting) {
         case 0:
@@ -61,9 +72,14 @@ bool IO::getSetting(int setting) {
             return false;
     }
 }
+
 void IO::display(Board& board, GameState state, bool setup, bool firstSetup) {
     input->notifyOutputs(board, std::array<bool, 4>{basicPieces, showCheckers, boardPerspective, wideBoard}, state, setup, firstSetup);
 }
+
+/**
+ * A more robust "notifyObservers()" setup:
+ */
 void IO::fullDisplay(Board& board, GameState state, int game, std::pair<int, int> players, bool setup, bool firstSetup) {
     if (game) {
         std::string white = "Player";
@@ -84,13 +100,25 @@ void IO::fullDisplay(Board& board, GameState state, int game, std::pair<int, int
     }
     display(board, state, setup, firstSetup);
 }
+
 void IO::runProgram() {
     input->runProgram(*this, out);
 }
 
+
+
 TextOutput::TextOutput(Input* toFollow, std::ostream& out): Output{toFollow}, out{out} {
     toFollow->attach(this);
 }
+
+/**
+ * Prints the board to the terminal.
+ * It is very fancy. Takes care of the following cases:
+ * 1. First board printed in setup mode
+ * 2. Normal board, printed during setup mode (has bars in front)
+ * 3. Accounting for all 4 settings simultaneously (ASCII pieces, checkerboard, perspective, and wide display)
+ * 4. Printing the board's final state if it's in a final state.
+ */
 void TextOutput::display(Board& board, std::array<bool, 4> settings, GameState state, bool setup, bool firstSetup) {
     Square kingSquare = board.getKing();
     Color turn = board.getTurn();
@@ -209,10 +237,15 @@ void TextOutput::display(Board& board, std::array<bool, 4> settings, GameState s
 GraphicalOutput::GraphicalOutput(Input* toFollow, int size): Output{toFollow}, window{std::make_unique<Xwindow>(size, size * 5 / 3)}, size{size} {
     toFollow->attach(this);
 }
-void GraphicalOutput::initialize(bool setup, std::string white, std::string black, int game) {
-    // White = 0, Black, LightBlue = 2, Blue, DarkBlue, LightRed = 5, Red, DarkRed
 
-    int color = setup ? 5 : 2;
+/**
+ * Draws the initial part of the graphical display to the screen.
+ * That is, the background, header, sidebar, and board.
+ */
+void GraphicalOutput::initialize(bool setup, std::string white, std::string black, int game) {
+    // COLORS: White = 0, Black, LightBlue = 2, Blue, DarkBlue, LightRed = 5, Red, DarkRed
+
+    int color = setup ? 5 : 2; // Setup mode is Red.
 
     int width = window->getWidth();
     int height = window->getHeight();
@@ -316,11 +349,11 @@ void GraphicalOutput::display(Board& board, std::array<bool, 4> settings, GameSt
             ColorPiece piece = board.getPieceAt(square);
             int pieceInt = piece / 4 * 2 + piece % 2;
 
-            if ((realRank + realFile) % 2) {
-                window->fillRectangle(width / 24 + height / 10 * file, height / 7 + height / 10 * rank, height / 10, height / 10, 0);
-            } else {
-                window->fillRectangle(width / 24 + height / 10 * file, height / 7 + height / 10 * rank, height / 10, height / 10, color);
-            }
+            //if ((realRank + realFile) % 2) {
+            //    window->fillRectangle(width / 24 + height / 10 * file, height / 7 + height / 10 * rank, height / 10, height / 10, 0);
+            //} else {
+            //    window->fillRectangle(width / 24 + height / 10 * file, height / 7 + height / 10 * rank, height / 10, height / 10, color);
+            //}
             if (pieceInt < 12) {
                 std::string s(1, PieceChar[pieceInt]);
                 window->drawString(width / 24 + height / 10 * file + height / 20, height / 7 + height / 10 * rank + height / 15, s);
@@ -1247,8 +1280,8 @@ void TextInput::runProgram(IO& io, std::ostream& out) {
             out << " ◌ │ HAGNUS MIEMANN CHESS ENGINE - Manual │" << std::endl;
             out << " ◌ ╰──────────────────────────────────────╯" << std::endl;
             out << " ◌ ╭─────╴" << std::endl;
-            //out << " ◌ ╞╴ ./chess" << std::endl;
-            //out << " ◌ │         Captures programmers who have no short-term memory." << std::endl;
+            out << " ◌ ╞╴ ./chess" << std::endl;
+            out << " ◌ │         Captures programmers who have no short-term memory." << std::endl;
             out << " ◌ ╞╴ exit" << std::endl;
             out << " ◌ │         Immediately terminates the program." << std::endl;
             out << " ◌ ╞╴ game [white] [black]" << std::endl;
@@ -1259,8 +1292,8 @@ void TextInput::runProgram(IO& io, std::ostream& out) {
             out << " ◌ │         Closes the graphical observer." << std::endl;
             out << " ◌ ╞╴ help" << std::endl;
             out << " ◌ │         Opens this manual." << std::endl;
-            //out << " ◌ ╞╴ make" << std::endl;
-            //out << " ◌ │         Captures programmers who forgot to CTRL+C!" << std::endl;
+            out << " ◌ ╞╴ make" << std::endl;
+            out << " ◌ │         Captures programmers who forgot to CTRL+C!" << std::endl;
             out << " ◌ ╞╴ move" << std::endl;
             out << " ◌ │         Tells the computer to compute and play its move." << std::endl;
             out << " ◌ ╞╴ move [from] [to] [promotion?]" << std::endl;
@@ -1353,16 +1386,16 @@ void TextInput::runProgram(IO& io, std::ostream& out) {
 
             bool isGraphicsOpen = io.hasGraphicsOpen();
 
-            if (first < 100 || first > 1000) {
+            if (first < 200 || first > 600) {
                 if (command == currLine) {
                     if (isGraphicsOpen) {
                         io.closeGraphicOutput();
                         out << " ◌ Graphics window closed." << std::endl;
                     } else {
-                        out << " ◌ No graphics window is open. Type `graphics [100-1000]` to open one." << std::endl;
+                        out << " ◌ No graphics window is open. Type `graphics [200-600]` to open one." << std::endl;
                     }
                 } else {
-                    out << " ◌ Usage:  graphics [100-1000]" << std::endl;
+                    out << " ◌ Usage:  graphics [200-600]" << std::endl;
                     out << " ◌         graphics [no parameters]" << std::endl;
                 }
             } else {

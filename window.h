@@ -19,6 +19,7 @@ public:
 
     // Available colours.
     enum {White = 0, Black, LightBlue, Blue, DarkBlue, LightRed, Red, DarkRed};
+    
     // Draws a rectangle
     void fillRectangle(int x, int y, int width, int height, int colour=Black);
 
