@@ -1,21 +1,31 @@
 #include <numeric>
 #include "evaluator.h"
 
+static CentipawnScore pawnPoints = 100, knightPoints = 320, bishopPoints = 330, rookPoints = 510, queenPoints = 880;
+
+CentipawnScore EvalLevelThree::getPieceValue(Piece piece) {
+    switch(piece) {
+        case Pawn:
+            return pawnPoints;
+        case Knight:
+            return knightPoints;
+        case Bishop:
+            return bishopPoints;
+        case Rook:
+            return rookPoints;
+        case Queen:
+            return queenPoints;
+        default:
+            assert(false);                    
+    }
+}
 
 CentipawnScore EvalLevelThree::staticEvaluate(const Board& board) {
-    CentipawnScore pawnPoints, knightPoints, bishopPoints, rookPoints, queenPoints;
-    pawnPoints = 100;
-    knightPoints = 320;
-    bishopPoints = 330;
-    rookPoints = 510;
-    queenPoints = 880;
 
     CentipawnScore eval = 0;
 
     for (int i = 0; i <= NumSquares; ++i) {
-        #include<stdio.h>
-        std::cout << eval << std::endl;
-        switch(board.getPieceAt(static_cast<Square>(i))) {
+        switch(board.getPieceAt(getSquareFromIndex(i))) {
             case Empty:
                 break;
             case WhitePawn:
@@ -53,7 +63,7 @@ CentipawnScore EvalLevelThree::staticEvaluate(const Board& board) {
         }
     }
 
-    return eval;
+    return board.getTurn() == White ? eval : -eval;
 }
 
 /*

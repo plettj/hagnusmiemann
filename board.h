@@ -184,13 +184,21 @@ public:
      */
     bool didLastMoveLeaveInCheck();
     bool isSideInCheck(Color side);
+    /**
+     * Faster implementation of this 
+     */
+    bool isCurrentTurnInCheck() const;
     
     Move getLastPlayedMove();
+    bool isMoveTactical(const Move& move);
+    bool currentSideAboutToPromote() const;
+    bool currentSideHasPiece(Piece piece) const;
 
     int getPlies() const;
     int getTotalPlies() const;
     Piece getLastMovedPiece() const;
     BoardLegality getBoardLegalityState() const;
+    uint64_t getBoardHash() const;
 
     bool isSquareAttacked(Square square, Color side); // the side of the piece on the square, not the attacking team.
     /**

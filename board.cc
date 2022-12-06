@@ -1417,3 +1417,23 @@ int Board::getTotalPlies() const {
 Piece Board::getLastMovedPiece() const {
     return getPieceType(squares[undoStack.back().move.getTo()]);
 }
+
+bool Board::isCurrentTurnInCheck() const {
+    return kingAttackers != 0;
+}
+
+bool Board::isMoveTactical(const Move& move) {
+    return (move.getMoveType() == Move::Enpassant || move.getMoveType() == Move::Promotion) || (squares[move.getTo()] != Empty && move.getMoveType() != Move::Castle);
+}
+
+bool Board::currentSideAboutToPromote() const {
+    return (pieces[Pawn] & sides[turn] & (turn == White ? Rank7 : Rank2)) != 0;
+}
+
+bool Board::currentSideHasPiece(Piece piece) const {
+    return (pieces[Pawn] & sides[turn]) != 0;
+}
+
+uint64_t Board::getBoardHash() const {
+    return positionHash;
+}

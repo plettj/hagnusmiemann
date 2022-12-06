@@ -260,6 +260,7 @@ void HeuristicMoveOrderer::seedMoveOrderer(Board& board, bool tacticalSearch) {
             counter = Move{};
         }
     }
+    currentSEEMargin = 0;
 }
 
 Move HeuristicMoveOrderer::pickNextMove(bool noisyOnly) {
@@ -276,22 +277,7 @@ Move HeuristicMoveOrderer::pickNextMove(bool noisyOnly) {
     
             //set MVV-LVA and history for each noisy move
             for(Move& move : moveList) {
-                Piece capturedPiece;
-                if(move.getMoveType() == Move::Normal) {
-                    capturedPiece = getPieceType(board->getPieceAt(move.getTo()));
-                } else { //enpassant or promotion, consider promotions as pawn captures because we have space in the array there
-                    capturedPiece = Pawn;
-                }
-                assert(capturedPiece != King);
-
-                HeuristicScore historyValue = captureHistory[getPieceType(board->getPieceAt(move.getFrom()))][move.getTo()][capturedPiece];
-                HeuristicScore mvvLvaValue = mvvLvaScores[capturedPiece] - mvvLvaScores[getPieceType(board->getPieceAt(move.getFrom()))];
-
-                //promoting to queens is a thing that we should prioritize calculating
-                if(move.getMoveType() == Move::Promotion && move.getPromoType() == Queen) {
-                    historyValue += normalizationConstant;
-                }
-                currentMoveScores[move] = normalizationConstant + historyValue + mvvLvaValue;
+                currentMoveScores[move] = getNoisyHeuristic(move);
             }
             [[fallthrough]];
         //if there's a good noisy move available, play it first
@@ -362,9 +348,8 @@ Move HeuristicMoveOrderer::pickNextMove(bool noisyOnly) {
                 quietSize = board->generateAllQuietMoves(moveList);
                 //set histories
                 for(int i = noisySize; i < noisySize + quietSize; ++i) {
-                    Move move = moveList[i];
-                    //TODO: We could add a followup move or counter move history here
-                    currentMoveScores[move] = quietHistory[board->getTurn()][move.getFrom()][move.getTo()];
+                    Move& move = moveList[i];
+                    currentMoveScores[move] = getQuietHeuristic(move);
                 }
             }
             [[fallthrough]];    
@@ -410,4 +395,29 @@ std::unique_ptr<MoveOrderer> RandomMoveOrderer::clone() const {
 
 std::unique_ptr<MoveOrderer> HeuristicMoveOrderer::clone() const {
     return std::make_unique<HeuristicMoveOrderer>(*this);
+}
+
+HeuristicScore HeuristicMoveOrderer::getNoisyHeuristic(const Move& move) {
+    Piece capturedPiece;
+    if(move.getMoveType() == Move::Normal) {
+        capturedPiece = getPieceType(board->getPieceAt(move.getTo()));
+    } else { //enpassant or promotion, consider promotions as pawn captures because we have space in the array there
+        capturedPiece = Pawn;
+    }
+    assert(capturedPiece != King);
+    HeuristicScore historyValue = captureHistory[getPieceType(board->getPieceAt(move.getFrom()))][move.getTo()][capturedPiece];
+    HeuristicScore mvvLvaValue = mvvLvaScores[capturedPiece] - mvvLvaScores[getPieceType(board->getPieceAt(move.getFrom()))];
+    //promoting to queens is a thing that we should prioritize calculating
+    if(move.getMoveType() == Move::Promotion && move.getPromoType() == Queen) {
+        historyValue += NormalizationConstant;
+    }
+    return historyValue + mvvLvaValue + NormalizationConstant;
+}
+
+HeuristicScore HeuristicMoveOrderer::getQuietHeuristic(const Move& move) {
+    return quietHistory[board->getTurn()][move.getFrom()][move.getTo()];
+}
+
+bool HeuristicMoveOrderer::isAtQuiets() {
+    return currentStage >= Quiet;
 }
