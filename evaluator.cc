@@ -2,7 +2,7 @@
 #include "evaluator.h"
 
 
-CentipawnScore evalLevelThree::staticEvaluate(const Board& board) {
+CentipawnScore EvalLevelThree::staticEvaluate(const Board& board) {
     CentipawnScore pawnPoints, knightPoints, bishopPoints, rookPoints, queenPoints;
     pawnPoints = 100;
     knightPoints = 320;

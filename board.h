@@ -122,10 +122,9 @@ public:
     Color getTurn() const;
     void setTurn(Color turn);
 
-    const CentipawnScore evaluateMaterial();
-    const void evalAddPiece(ColorPiece piece, Square location);
-    const void evalRemovePiece(ColorPiece piece, Square location);
-    const void initMaterialEval();
+    void evalAddPiece(CentipawnScore& eval, ColorPiece piece, Square location);
+    void evalRemovePiece(CentipawnScore& eval, ColorPiece piece, Square location);
+    void initMaterialEval(CentipawnScore& eval);
 
     bool hasNonPawns(Color side) const;
     bool isDrawn() const;
@@ -325,10 +324,7 @@ private:
     Color turn;
     int plies;
     int fullmoves;
-    Square enpassantSquare;
-
-    // for stateval
-    CentipawnScore currentEval;
+    Square enpassantSquare;   
 
 
     unsigned long long perft(std::map<std::string, int>& divideTree, int depth, int& enpassant, int& promotions, int& castles);
@@ -360,7 +356,7 @@ private:
 	    Bitboard castlingRooks;
 	    Square enpassantSquare;
 	    int plies;
-	    //TODO: psqt?
+	    CentipawnScore currentEval;
 	    ColorPiece pieceCaptured;
         Move move;
     };

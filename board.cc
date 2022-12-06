@@ -588,9 +588,6 @@ Board Board::createBoardFromFEN(std::string fen) {
 	    }
     }
 
-    //init stateval
-    board.initMaterialEval();
-
     //TODO: hash here probably (reset the rooks bits)
 
     fen.erase(0, fen.find(" ") + 1);
@@ -605,7 +602,7 @@ Board Board::createBoardFromFEN(std::string fen) {
     board.plies = std::stoi(token);
     fen.erase(0, fen.find(" ") + 1);
     token = fen.substr(0, fen.find(" "));
-    board.fullmoves = std::stoi(token);
+    board.fullmoves = 0;
 
     return board;
 }
@@ -747,28 +744,25 @@ void Board::PrecomputedBinary::populateHashTable(HashEntry* table, Square square
     }
 }
 
-const CentipawnScore Board::evaluateMaterial() {
-    return currentEval;
-};
-
-const void Board::evalAddPiece(ColorPiece piece, Square location) {
-    currentEval += psqt[piece][location];
+void Board::evalAddPiece(CentipawnScore& eval, ColorPiece piece, Square location) {
+    eval += psqt.at(piece)[location];
 }
 
-const void Board::evalRemovePiece(ColorPiece piece, Square location) {
-    currentEval -= psqt[piece][location];
+void Board::evalRemovePiece(CentipawnScore& eval, ColorPiece piece, Square location) {
+    eval -= psqt.at(piece)[location];
 }
 
-const void Board::initMaterialEval() {
-    currentEval = 0;
+void Board::initMaterialEval(CentipawnScore& eval) {
+    eval = 0;
 
-    for (int i = 0; i <= NumSquares; ++i) {
-        currentEval += psqt[squares[i]][i];
+    for (int i = 0; i < NumSquares; ++i) {
+        evalAddPiece(eval, squares[getSquare(i)], getSquare(i));
     }
 }
 
 
 bool Board::applyMove(Move& move) {
+    if (undoStack.size()) std::cout << "eval111111111111111111111 " << undoStack.back().currentEval << std::endl;
     if(move.isMoveNone()) {
         return false;
     }
@@ -779,6 +773,7 @@ bool Board::applyMove(Move& move) {
         undoStack.pop_back();
         return false;
     }
+    std::cout << "eval2222222222222222222 " << undoStack.back().currentEval << std::endl;
     return true;
 }
 
@@ -805,6 +800,14 @@ void Board::applyMoveWithUndo(Move& move, UndoData& undo) {
     undo.plies = plies;
     undo.move = move;
 
+    // init psqt for the current move
+    if (!fullmoves) {
+        initMaterialEval(undo.currentEval);
+    } else {
+        std::cout << fullmoves << " " << undoStack[fullmoves - 1].currentEval << std::endl;
+        undo.currentEval = undoStack[fullmoves-1].currentEval;
+    }
+
     //TODO: store hash in history
     fullmoves++;
 
@@ -822,8 +825,6 @@ void Board::applyMoveWithUndo(Move& move, UndoData& undo) {
 	        applyPromotionMoveWithUndo(move, undo);  
             break;  
     }
-
-    //TODO: zobrist castling rights
 
     //if the enpassant square was not updated (i.e. no 2 pawn forward move was played),
     //then enpassant expires and we must remove it
@@ -873,15 +874,15 @@ void Board::applyNormalMoveWithUndo(Move& move, UndoData& undo) {
     ZobristNums::changePiece(undo.positionHash, getColorOfPiece(from), getPieceType(from), move.getTo());
 
     // material eval update
-    evalAddPiece(from, move.getFrom());
-    evalRemovePiece(from, move.getFrom());
+    evalAddPiece(undo.currentEval, from, move.getTo());
+    evalRemovePiece(undo.currentEval, from, move.getFrom());
 
     //if we captured
     if(to != Empty) {
         pieces[getPieceType(to)] ^= (1ull << move.getTo());
         sides[flipColor(turn)] ^= (1ull << move.getTo());
         ZobristNums::changePiece(undo.positionHash, getColorOfPiece(to), getPieceType(to), move.getTo());
-        evalRemovePiece(to, move.getTo());
+        evalRemovePiece(undo.currentEval, to, move.getTo());
     }
 
     squares[move.getFrom()] = Empty;
@@ -924,10 +925,10 @@ void Board::applyCastlingMoveWithUndo(Move& move, Board::UndoData& undo) {
     ZobristNums::changePiece(undo.positionHash, getColorOfPiece(squares[move.getFrom()]), Rook, rookFrom);
 
     //material eval update
-    evalAddPiece(squares[kingFrom], kingTo);
-    evalRemovePiece(squares[kingFrom], kingFrom);
-    evalAddPiece(squares[rookFrom], rookTo);
-    evalRemovePiece(squares[rookFrom], rookFrom);
+    evalAddPiece(undo.currentEval, squares[kingFrom], kingTo);
+    evalRemovePiece(undo.currentEval, squares[kingFrom], kingFrom);
+    evalAddPiece(undo.currentEval,squares[rookFrom], rookTo);
+    evalRemovePiece(undo.currentEval, squares[rookFrom], rookFrom);
     
     pieces[King] ^= (1ull << kingFrom) ^ (1ull << kingTo);
     sides[turn] ^= (1ull << kingFrom) ^ (1ull << kingTo);
@@ -957,9 +958,9 @@ void Board::applyEnpassantMoveWithUndo(Move& move, Board::UndoData& undo) {
     ZobristNums::changePiece(undo.positionHash, flipColor(getColorOfPiece(squares[move.getFrom()])), Pawn, capturedSquare);
 
     //materialEval update
-    evalAddPiece(squares[move.getFrom()], move.getTo());
-    evalRemovePiece(squares[move.getFrom()], move.getFrom());
-    evalAddPiece(squares[capturedSquare], capturedSquare);
+    evalAddPiece(undo.currentEval, squares[move.getFrom()], move.getTo());
+    evalRemovePiece(undo.currentEval, squares[move.getFrom()], move.getFrom());
+    evalRemovePiece(undo.currentEval, squares[capturedSquare], capturedSquare);
     
     //en passant is a capture, so reset the fifty move rule
     plies = 0;
@@ -984,8 +985,8 @@ void Board::applyPromotionMoveWithUndo(Move& move, Board::UndoData& undo) {
     ZobristNums::changePiece(undo.positionHash, getColorOfPiece(promotedPiece), move.getPromoType(), move.getTo());
 
     //material eval
-    evalAddPiece(promotedPiece, move.getTo());
-    evalRemovePiece(squares[move.getFrom()], move.getFrom());
+    evalAddPiece(undo.currentEval, promotedPiece, move.getTo());
+    evalRemovePiece(undo.currentEval, squares[move.getFrom()], move.getFrom());
 
     //promotion resets the fifty move rule
     plies = 0;
@@ -995,7 +996,7 @@ void Board::applyPromotionMoveWithUndo(Move& move, Board::UndoData& undo) {
 
     if(capturedPiece != Empty) {
         ZobristNums::changePiece(undo.positionHash, getColorOfPiece(capturedPiece), getPieceType(capturedPiece), move.getTo());
-        evalRemovePiece(squares[move.getFrom()], move.getFrom());
+        evalRemovePiece(undo.currentEval, squares[move.getFrom()], move.getFrom());
         pieces[getPieceType(capturedPiece)] ^= (1ull << move.getTo());
         sides[getColorOfPiece(capturedPiece)] ^= (1ull << move.getTo());
     }
