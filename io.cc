@@ -6,8 +6,12 @@
 #include "easydifficulty.h"
 #include <iostream>
 #include <sstream>
+#include <random>
 #include <regex>
 #include <cmath>
+
+const std::array<char, 12> PieceChar = {'p', 'P', 'n', 'N', 'b', 'B', 'r', 'R', 'q', 'Q', 'k', 'K'};
+const std::array<std::string, 12> PieceImage{"♟", "♙", "♞", "♘", "♝", "♗", "♜", "♖", "♛", "♕", "♚", "♔"};
 
 IO::IO(std::istream& in, std::ostream& out): input{std::make_unique<TextInput>(in)}, out{out} {}
 void IO::makeTextOutput(std::ostream& out) {
@@ -59,6 +63,26 @@ bool IO::getSetting(int setting) {
 }
 void IO::display(Board& board, GameState state, bool setup, bool firstSetup) {
     input->notifyOutputs(board, std::array<bool, 4>{basicPieces, showCheckers, boardPerspective, wideBoard}, state, setup, firstSetup);
+}
+void IO::fullDisplay(Board& board, GameState state, int game, std::pair<int, int> players, bool setup, bool firstSetup) {
+    if (game) {
+        std::string white = "Player";
+        if (players.first) {
+            white = "Computer ";
+            std::string number(1, static_cast<char>(players.first + 48));
+            white += number;
+        }
+        std::string black = "Player";
+        if (players.second) {
+            black = "Computer ";
+            std::string number(1, static_cast<char>(players.second + 48));
+            black += number;
+        }
+        initialize(setup, white, black, game);
+    } else {
+        initialize(setup, "???", "???", game);
+    }
+    display(board, state, setup, firstSetup);
 }
 void IO::runProgram() {
     input->runProgram(*this, out);
@@ -186,21 +210,19 @@ GraphicalOutput::GraphicalOutput(Input* toFollow, int size): Output{toFollow}, w
     toFollow->attach(this);
 }
 void GraphicalOutput::initialize(bool setup, std::string white, std::string black, int game) {
-    // TODO
-    std::cout << "setup mode: " << setup << std::endl;
-    std::cout << "white:      " << white << std::endl;
-    std::cout << "black:      " << black << std::endl;
-    std::cout << "game:       " << game << std::endl;
+    // White = 0, Black, LightBlue = 2, Blue, DarkBlue, LightRed = 5, Red, DarkRed
 
-    // White=0, Black, Red, Green, Blue, Cyan, Yellow, Magenta, Orange, Brown
+    int color = setup ? 5 : 2;
 
     int width = window->getWidth();
     int height = window->getHeight();
 
     // BACKGROUND
-    window->fillRectangle(0, 0, width, height, 3);
+    window->fillRectangle(0, 0, width, height, color);
+    // RIGHT SIDEBAR
+    window->fillRectangle(width * 8 / 11, 0, width * 3 / 11, height, color + 2);
     // HEADER
-    window->fillRectangle(0, 0, width, height / 8, 2);
+    window->fillRectangle(0, 0, width, height / 8, color + 1);
     if (setup) {
         window->drawString(width / 24, height / 16, "SETUP MODE");
     } else {
@@ -218,8 +240,114 @@ void GraphicalOutput::initialize(bool setup, std::string white, std::string blac
     
 }
 void GraphicalOutput::display(Board& board, std::array<bool, 4> settings, GameState state, bool setup, bool firstSetup) {
-    // TODO
-    
+    Square kingSquare = board.getKing();
+    Color turn = board.getTurn();
+
+    int color = setup ? 5 : 2;
+
+    int width = window->getWidth();
+    int height = window->getHeight();
+
+    bool checked = board.isSquareAttacked(kingSquare, turn);
+
+    std::string lastMoveString = "";
+    Move lastMove = board.getLastPlayedMove();
+    int plies = board.getTotalPlies();
+
+    bool blackPerspective = (settings[2] && static_cast<bool>(turn));
+
+    std::string gameMessage[2] = {"", ""};
+    switch (state) {
+        case WhiteResigned:
+            gameMessage[0] = "Black won by";
+            gameMessage[1] = "resignation.";
+            break;
+        case BlackResigned:
+            gameMessage[0] = "White won by";
+            gameMessage[1] = "resignation.";
+            break;
+        case WhiteGotMated:
+            gameMessage[0] = "Black won by";
+            gameMessage[1] = "checkmate!";
+            break;
+        case BlackGotMated:
+            gameMessage[0] = "White won by";
+            gameMessage[1] = "checkmate!";
+            break;
+        case Stalemate:
+            gameMessage[0] = "Game drawn by";
+            gameMessage[1] = "stalemate.";
+            break;
+        case FiftyMove:
+            gameMessage[0] = "Game drawn by you being so darn slow at whatever the heck you were trying to";
+            gameMessage[1] = "do that you played 50 non-permanent moves in a row, you absolute *hand towel*.";
+            break;
+        case Threefold:
+            gameMessage[0] = "Game drawn by";
+            gameMessage[1] = "3-fold repetition.";
+            break;
+        case InsufficientMaterial:
+            gameMessage[0] = "Game drawn by";
+            gameMessage[1] = "insuff. material.";
+            break;
+        default:
+            break;
+    }
+
+    if (plies > 1 && !state) {
+        std::string move = std::to_string(plies / 2);
+        move += ". ";
+        move += turn ? "" : "... ";
+        move += lastMove.toString();
+        move += checked ? "+" : "";
+        window->drawString(width * 3 / 4, height / 5, move);
+    }
+
+    for (int rank = 0; rank < NumRanks; ++rank) {
+        int realRank = (blackPerspective) ? rank : 7 - rank;
+
+        std::string item = std::to_string(realRank + 1);
+        window->drawString(width / 40, height / 7 + height / 10 * rank + height / 15, item);
+        
+        for (int file = 0; file < NumFiles; ++file) {
+            int realFile = (blackPerspective) ? 7 - file : file;
+
+            Square square = Board::getSquare(realRank, realFile);
+            ColorPiece piece = board.getPieceAt(square);
+            int pieceInt = piece / 4 * 2 + piece % 2;
+
+            if ((realRank + realFile) % 2) {
+                window->fillRectangle(width / 24 + height / 10 * file, height / 7 + height / 10 * rank, height / 10, height / 10, 0);
+            } else {
+                window->fillRectangle(width / 24 + height / 10 * file, height / 7 + height / 10 * rank, height / 10, height / 10, color);
+            }
+            if (pieceInt < 12) {
+                std::string s(1, PieceChar[pieceInt]);
+                window->drawString(width / 24 + height / 10 * file + height / 20, height / 7 + height / 10 * rank + height / 15, s);
+            }
+        }
+
+        if (state) {
+            window->drawString(width * 3 / 4, height * 2 / 5, gameMessage[0]);
+            window->drawString(width * 3 / 4, height * 2 / 5 + height / 25, gameMessage[1]);
+        } else if (checked) {
+            std::string item = turn ? "Black" : "White";
+            item += " is in check.";
+            window->drawString(width * 3 / 4, height * 3.5 / 5, item);
+        }
+    }
+
+    if (!state) {
+        std::string item = turn ? "Black" : "White";
+        item += " to move.";
+        window->drawString(width * 3 / 4, height * 4 / 5, item);
+    }
+
+    for (int file = 0; file < NumFiles; ++file) {
+        int realFile = (blackPerspective) ? 7 - file : file;
+        std::string s(1, static_cast<char>(realFile + 97));
+        window->drawString(width / 24 + height / 10 * file + height / 20, height * 39 / 40, s);
+    }
 
 }
 
@@ -710,7 +838,7 @@ void TextInput::runProgram(IO& io, std::ostream& out) {
                             break;
                     }
                 }
-                io.display(board, state);
+                io.fullDisplay(board, state, totalGames, players);
             } else if (!isGameRunning) {
                 if (second == "") {
                     out << " ◌ Usage:  game [white] [black]" << std::endl;
@@ -728,7 +856,7 @@ void TextInput::runProgram(IO& io, std::ostream& out) {
                 if ((players.first && !turn) || (players.second && turn)) {
                     out << " ◌ You cannot make the computer resign." << std::endl;
                 } else {
-                    io.display(board, static_cast<GameState>(turn + 1));
+                    io.fullDisplay(board, static_cast<GameState>(turn + 1), totalGames, players);
                     if (turn) scores.first++;
                     else scores.second++;
                     isGameRunning = false;
@@ -772,13 +900,13 @@ void TextInput::runProgram(IO& io, std::ostream& out) {
                                 scores.first += 0.5;
                                 scores.second += 0.5;
                             }
-                            io.display(board, state);
+                            io.fullDisplay(board, state, totalGames, players);
                             isGameRunning = false;
                             state = GameState::Neutral;
                             board = Board::createBoardFromFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
                             board.validateLegality();
                         } else {
-                            io.display(board, state);
+                            io.fullDisplay(board, state, totalGames, players);
                         }
                     } else {
                         out << " ◌ It's a player's turn. Specify the move." << std::endl;
@@ -863,13 +991,13 @@ void TextInput::runProgram(IO& io, std::ostream& out) {
                                                 scores.first += 0.5;
                                                 scores.second += 0.5;
                                             }
-                                            io.display(board, state);
+                                            io.fullDisplay(board, state, totalGames, players);
                                             isGameRunning = false;
                                             state = GameState::Neutral;
                                             board = Board::createBoardFromFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
                                             board.validateLegality();
                                         } else {
-                                            io.display(board, state);
+                                            io.fullDisplay(board, state, totalGames, players);
                                         }
                                     } else {
                                         out << " ◌ This move leaves you in check." << std::endl;
@@ -930,8 +1058,7 @@ void TextInput::runProgram(IO& io, std::ostream& out) {
                     
                     if (!isSetup) board = Board::createBoardFromFEN("8/8/8/8/8/8/8/8 w - - 0 1");
                     isSetup = true;
-                    
-                    io.display(board, state, true, true);
+                    io.fullDisplay(board, state, totalGames, players, true, true);
 
                     out << " ● │ Command: ";
                     while (std::getline(std::cin, currLine)) {
@@ -955,7 +1082,7 @@ void TextInput::runProgram(IO& io, std::ostream& out) {
                                     Square square = Board::squareFromString(second);
                                     board.clearSquare(square);
                                     board.setSquare(color, piece, square);
-                                    io.display(board, state, true);
+                                    io.fullDisplay(board, state, totalGames, players, true);
                                 }
                             } else {
                                 out << " ◌ │ Usage:  + [pnbrqkPNBRQK] [a-h][1-8]" << std::endl;
@@ -970,7 +1097,7 @@ void TextInput::runProgram(IO& io, std::ostream& out) {
                                 } else {
                                     Square square = Board::squareFromString(first);
                                     board.clearSquare(square);
-                                    io.display(board, state, true);
+                                    io.fullDisplay(board, state, totalGames, players, true);
                                 }
                             } else {
                                 out << " ◌ │ Usage:  - [square]" << std::endl;
@@ -983,7 +1110,7 @@ void TextInput::runProgram(IO& io, std::ostream& out) {
                                 if (first == "black" || first == "white") {
                                     Color turn = (first == "white") ? Color::White : Color::Black;
                                     board.setTurn(turn);
-                                    io.display(board, state, true);
+                                    io.fullDisplay(board, state, totalGames, players, true);
                                 } else {
                                     out << " ◌ │ A valid colour (black, white) was not specified." << std::endl;
                                 }
@@ -1006,7 +1133,7 @@ void TextInput::runProgram(IO& io, std::ostream& out) {
                         } else if (command == "castle" || command == "castles") {
                             out << " ◌ │ Castling rights:   " << board.getCastlingRights() << std::endl;
                         } else if (command == "print") {
-                            io.display(board, state, true);
+                            io.fullDisplay(board, state, totalGames, players, true);
                         } else if (command == "toggle") {
                             std::string first = "";
                             lineStream >> first;
@@ -1036,8 +1163,6 @@ void TextInput::runProgram(IO& io, std::ostream& out) {
                             } else {
                                 out << " ◌ │ Usage:  toggle [right]" << std::endl;
                             }
-                            // board.setCastlingRight(Color side, isKingside)
-
 
                             out << " ◌ │ Castling rights:   " << board.getCastlingRights() << std::endl;
                         } else if (command == "passant") {
@@ -1055,10 +1180,11 @@ void TextInput::runProgram(IO& io, std::ostream& out) {
                             }
                         } else if (command == "cancel") {
                             isSetup = false;
-                            Board board = Board::createBoardFromFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
+                            board = Board::createBoardFromFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
                             board.validateLegality();
                             out << " ◌ │ The board was reset to the starting position:" << std::endl;
-                            io.display(board, state, true);
+                            io.fullDisplay(board, state, totalGames, players, true);
+                            isSetup = false;
                             break; // Exit setup mode
                         } else if (command == "done") {
                             Board::BoardLegality legality = board.getBoardLegalityState();
@@ -1077,7 +1203,8 @@ void TextInput::runProgram(IO& io, std::ostream& out) {
                                 } else {
                                     board.validateLegality();
                                     out << " ◌ │ The board is set up legally:" << std::endl;
-                                    io.display(board, state, true);
+                                    io.fullDisplay(board, state, totalGames, players, true);
+                                    isSetup = false;
                                     break; // Exit setup mode.
                                 }
                             } else if (legality == Board::BoardLegality::IllegalPawns) {
@@ -1104,7 +1231,7 @@ void TextInput::runProgram(IO& io, std::ostream& out) {
                         board = Board::createBoardFromFEN(fen); // No error-checking here because official FEN correctness is a pain in the ass.
                         board.validateLegality();
                         out << " ◌ │ Board successfully initialized with your FEN: " << std::endl;
-                        io.display(board, state, true); // passing in `true` means IO displays it in setup mode.
+                        io.fullDisplay(board, state, totalGames, players, true); // passing in `true` means IO displays it in setup mode.
                         out << " ◌ ╰─────╴ SETUP MODE ─ Closed" << std::endl;
                     } else {
                         out << " ◌ Your FEN was malformed." << std::endl;
@@ -1185,7 +1312,7 @@ void TextInput::runProgram(IO& io, std::ostream& out) {
             if (isGameRunning) {
                 if (board.getTotalPlies() > 1) {
                     board.revertMostRecent();
-                    io.display(board, GameState::Neutral);
+                    io.fullDisplay(board, GameState::Neutral, totalGames, players);
                 } else {
                     out << " ◌ The game has no moves to undo." << std::endl;
                 }
@@ -1241,8 +1368,9 @@ void TextInput::runProgram(IO& io, std::ostream& out) {
             } else {
                 if (!isGraphicsOpen) {
                     io.makeGraphicOutput(first);
-                    io.initialize(true, "", "", totalGames);
+                    // io.fullDisplay(board, state, totalGames, players);
                     out << " ◌ Graphics window opened." << std::endl;
+                    out << " ◌ Whenever the text interface draws the board, it will update." << std::endl;
                 } else {
                     out << " ◌ A graphics window is already open. Type `graphics` to close it." << std::endl;
                 }
@@ -1257,7 +1385,7 @@ void TextInput::runProgram(IO& io, std::ostream& out) {
             return;
         } else if (command == "print") {
             if (isGameRunning) {
-                io.display(board, state);
+                io.fullDisplay(board, state, totalGames, players);
             } else {
                 out << " ◌ No game is currently in progress." << std::endl;
             }

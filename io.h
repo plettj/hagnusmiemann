@@ -3,6 +3,7 @@
 #include "board.h"
 #include "move.h"
 #include "window.h"
+#include "difficultylevel.h"
 #include <iostream>
 #include <memory>
 
@@ -23,15 +24,16 @@ class IO {
     bool showCheckers = false; // Whether to differentiate the dark and light squares
     bool boardPerspective = false; // Whether to print the board from black's perspective when appropriate
     bool wideBoard = false; // Whether to print the board with wide style
-    bool autoMove = false; // Whether to 
+
+    void initialize(bool setup, std::string white, std::string black, int game);
+    void display(Board& board, GameState state, bool setup = false, bool firstSetup = false);
 public:
     IO(std::istream& in, std::ostream& out);
     void makeTextOutput(std::ostream& out);
     void makeGraphicOutput(int size = 600);
     void closeGraphicOutput(); // Closes the most recently opened output.
     bool hasGraphicsOpen();
-    void initialize(bool setup, std::string white, std::string black, int game);
-    void display(Board& board, GameState state, bool setup = false, bool firstSetup = false);
+    void fullDisplay(Board& board, GameState state, int game, std::pair<int, int> players, bool setup = false, bool firstSetup = false);
     void toggleSetting(int setting);
     bool getSetting(int setting);
     void runProgram();
@@ -51,11 +53,6 @@ public:
 // Concrete Observer #1
 class TextOutput: public Output {
     std::ostream& out;
-    /**
-     * Translate our piece integers into display characters.
-     * */
-    const std::array<char, 12> PieceChar{'p', 'P', 'n', 'N', 'b', 'B', 'r', 'R', 'q', 'Q', 'k', 'K'};
-    const std::array<std::string, 12> PieceImage{"♟", "♙", "♞", "♘", "♝", "♗", "♜", "♖", "♛", "♕", "♚", "♔"};
 public:
     TextOutput(Input* toFollow, std::ostream& out);
     void initialize(bool setup, std::string white, std::string black, int game) override {};
