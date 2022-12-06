@@ -523,10 +523,6 @@ Board::BoardLegality Board::getBoardLegalityState() const {
     return Legal;
 }
 
-Board Board::createEmptyBoard() {
-    return Board{};
-}
-
 Board Board::createBoardFromFEN(std::string fen) {
     Board board;
     int square = a8;

@@ -113,7 +113,6 @@ public:
      * Factory object pattern. Creates a board object from a FEN (the copy is intentional!), OPERATES UNDER THE INVARIANT THAT THE FEN IS WELL-FORMED
      */ 
     static Board createBoardFromFEN(std::string fen);
-    static Board createEmptyBoard();
     void validateLegality();
 
     std::string getFEN() const;
