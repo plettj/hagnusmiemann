@@ -9,13 +9,43 @@ static constexpr std::array<CentipawnScore, NumPieces> seeScores = {100, 400, 40
  *  MVV-LVA values for each piece
  */
 static constexpr std::array<HeuristicScore, NumPieces> mvvLvaScores = {0, 3000, 3500, 5000, 10000, 11000};
+static CentipawnScore currentSEEMargin = 0;
 
+/**
+ * Killer moves are refutations that produced beta cutoffs at the same depth in adjacent nodes.
+ * These are heuristically good to check, because odds are, a move that refutes moves in sibling positions
+ * will also refute moves in our position.
+ * Ordered by depth. 
+ */
+static std::array<Move, MaxDepth> killerHistoryOne;
+static std::array<Move, MaxDepth> killerHistoryTwo;
+/**
+ * Indexed by [pieceColor][piece][toSquare].
+ * Counter moves are refutations to moving a certain piece to a certain square,
+ * since usually something that refutes a move like that will repeatedly refute it.
+ */
+static TripleArray<Move, NumColors, NumPieces, NumSquares> counterMoves;
+/**
+ * Indexed by [pieceColor][piece][toSquare]. 
+ * A history of how good moving a piece to a square is as a move in past evaluations,
+ * since this is a heuristically good past indicator of how good a move is to be.
+ */
+static TripleArray<HeuristicScore, NumColors, NumPieces, NumSquares> quietHistory;
+
+    /**
+ * Indexed by [aggressor][toSquare][victim].
+ * Most Valuable Victim-Least Valuable Aggressor (MVV-LVA) combined with a history-style heuristic.
+ * The history heuristic is as described above, we combine this with MVV-LVA,
+ * which is a heuristic that says capturing things worth a lot with pieces not worth a lot is a good idea.
+ */
+static TripleArray<HeuristicScore, NumPieces, NumSquares, NumPieces> captureHistory;
+
+static bool hasBeenInit = false;
 
 MoveOrderer::MoveOrderer() {
     moveList.reserve(MaxNumMoves);
 }
 
-//haha funny meme number
 RandomMoveOrderer::RandomMoveOrderer() : MoveOrderer{} {
     std::random_device rand;
     rng = std::mt19937{rand()};
@@ -46,33 +76,52 @@ Move RandomMoveOrderer::pickNextMove(bool noisyOnly) {
 }
 
 HeuristicMoveOrderer::HeuristicMoveOrderer() : MoveOrderer{}, currentMoveScores{} {
+    init();
+}
+
+void HeuristicMoveOrderer::init() {
+    if(hasBeenInit) {
+        return;
+    }
     killerHistoryOne.fill(Move{});
     killerHistoryTwo.fill(Move{});
     for(int i = 0; i < NumColors; ++i) {
         for(int j = 0; j < NumPieces; ++j) {
             for(int k = 0; k < NumSquares; ++k) {
                 counterMoves[i][j][k] = Move{};
+                quietHistory[i][j][k] = 0;
             }
         }
-        quietHistory[i].fill({});
-        captureHistory[i].fill({});
     }
+    for(int i = 0; i < NumPieces; ++i) {
+        for(int j = 0; j < NumSquares; ++j) {
+            for(int k = 0; k < NumPieces; ++k) {
+                captureHistory[i][j][k] = 0;
+            }
+        }
+    }
+    hasBeenInit = true;
 }
 
-bool HeuristicMoveOrderer::staticExchangeEvaluation(const Move& move, CentipawnScore margin) {
-    assert(board != nullptr);
+bool HeuristicMoveOrderer::staticExchangeEvaluation(Board& board, const Move& move, CentipawnScore margin) {
+    if(move.getMoveType() == Move::Castle) {
+        return true;
+    }
     //Iteratively go through the pieces that can attack the square in question (taking into account piece values) and 
     //determine who wins.
     CentipawnScore sideBalance = 0;
 
     //After doing the capture, the next victim is the piece we captured with unless we promote and 
     //that piece changes (done in the below if statement)
-    Piece victim = getPieceType(board->getPieceAt(move.getFrom()));
+    Piece victim = getPieceType(board.getPieceAt(move.getFrom()));
 
     if(move.getMoveType() != Move::Enpassant) {
-        assert(move.getMoveType() != Move::Castle);
         //how valuable is the thing we are capturing
-        sideBalance = seeScores[getPieceType(board->getPieceAt(move.getTo()))];
+        if(board.getPieceAt(move.getTo()) != Empty) {
+            sideBalance = seeScores[getPieceType(board.getPieceAt(move.getTo()))];
+        } else {
+            sideBalance = 0;
+        }
         if(move.getMoveType() == Move::Promotion) {
             victim = move.getPromoType();
             //add the value of promoting our thing to SEE
@@ -101,42 +150,42 @@ bool HeuristicMoveOrderer::staticExchangeEvaluation(const Move& move, CentipawnS
     //and count everything.
 
     //The occupied bitboard given that the first move happened.
-    Bitboard occupiedBoard = ((board->sides[White] | board->sides[Black]) ^ (1ull << move.getFrom())) | (1ull << move.getTo());
+    Bitboard occupiedBoard = ((board.sides[White] | board.sides[Black]) ^ (1ull << move.getFrom())) | (1ull << move.getTo());
     if(move.getMoveType() == Move::Enpassant) {
-        occupiedBoard ^= (1ull << board->enpassantSquare);
+        occupiedBoard ^= (1ull << board.enpassantSquare);
     }
 
-    Bitboard bishops = board->pieces[Bishop] | board->pieces[Queen];
-    Bitboard rooks = board->pieces[Rook] | board->pieces[Queen];
+    Bitboard bishops = board.pieces[Bishop] | board.pieces[Queen];
+    Bitboard rooks = board.pieces[Rook] | board.pieces[Queen];
 
-    Bitboard allSquareAttackers = (Board::PrecomputedBinary::getBinary().getPawnAttacksFromSquare(move.getTo(), White) & board->sides[Black] & board->pieces[Pawn])
-                                | (Board::PrecomputedBinary::getBinary().getPawnAttacksFromSquare(move.getTo(), Black) & board->sides[White] & board->pieces[Pawn])
-                                | (Board::PrecomputedBinary::getBinary().getKnightAttacksFromSquare(move.getTo()) & board->pieces[Knight])
+    Bitboard allSquareAttackers = (Board::PrecomputedBinary::getBinary().getPawnAttacksFromSquare(move.getTo(), White) & board.sides[Black] & board.pieces[Pawn])
+                                | (Board::PrecomputedBinary::getBinary().getPawnAttacksFromSquare(move.getTo(), Black) & board.sides[White] & board.pieces[Pawn])
+                                | (Board::PrecomputedBinary::getBinary().getKnightAttacksFromSquare(move.getTo()) & board.pieces[Knight])
                                 | (Board::PrecomputedBinary::getBinary().getBishopAttacksFromSquare(move.getTo(), occupiedBoard) & bishops)
                                 | (Board::PrecomputedBinary::getBinary().getRookAttacksFromSquare(move.getTo(), occupiedBoard) & rooks)
-                                | (Board::PrecomputedBinary::getBinary().getKingAttacksFromSquare(move.getTo()) & board->pieces[King]);
+                                | (Board::PrecomputedBinary::getBinary().getKingAttacksFromSquare(move.getTo()) & board.pieces[King]);
     //so the original piece doesn't attack twice
     allSquareAttackers &= occupiedBoard;
 
-    Color turn = flipColor(board->turn);
+    Color turn = flipColor(board.turn);
 
-    for(Bitboard attackers = allSquareAttackers & board->sides[turn]; attackers != 0;) {
+    for(Bitboard attackers = allSquareAttackers & board.sides[turn]; attackers != 0;) {
         //find the next piece we can attack with with least value
-        if((attackers & board->pieces[Pawn]) != 0) {
+        if((attackers & board.pieces[Pawn]) != 0) {
             victim = Pawn;
-        } else if((attackers & board->pieces[Knight]) != 0) {
+        } else if((attackers & board.pieces[Knight]) != 0) {
             victim = Knight;
-        } else if((attackers & board->pieces[Bishop]) != 0) {
+        } else if((attackers & board.pieces[Bishop]) != 0) {
             victim = Bishop;
-        } else if((attackers & board->pieces[Rook]) != 0) {
+        } else if((attackers & board.pieces[Rook]) != 0) {
             victim = Rook;
-        } else if((attackers & board->pieces[Queen]) != 0) {
+        } else if((attackers & board.pieces[Queen]) != 0) {
             victim = Queen;
         } else {
             victim = King;
         }
         //remove this attacker from its current square
-        occupiedBoard ^= (1ull << Board::getLsb(attackers & board->pieces[victim]));
+        occupiedBoard ^= (1ull << Board::getLsb(attackers & board.pieces[victim]));
         //If we attacked diagonally, we could open up a diagonal
         if(victim == Pawn || victim == Bishop || victim == Queen) {
             allSquareAttackers |= (Board::PrecomputedBinary::getBinary().getBishopAttacksFromSquare(move.getTo(), occupiedBoard) & bishops);
@@ -156,7 +205,7 @@ bool HeuristicMoveOrderer::staticExchangeEvaluation(const Move& move, CentipawnS
         //if we just are winning even after losing the piece we capture with
         //for nothing, we win the exchange, unless we captured with our king and the opponent still has attackers
         if(sideBalance >= 0) {
-            if(victim == King && (allSquareAttackers & board->sides[turn]) != 0) {
+            if(victim == King && (allSquareAttackers & board.sides[turn]) != 0) {
                 //change who wins as we break out of the loop
                 turn = flipColor(turn);
             }
@@ -164,7 +213,7 @@ bool HeuristicMoveOrderer::staticExchangeEvaluation(const Move& move, CentipawnS
         }
     }
     //we win if we were not the side who ran out of valid pieces first
-    return turn != board->turn;
+    return turn != board.turn;
 }
 
 HeuristicScore HeuristicMoveOrderer::getNewHistoryValue(HeuristicScore oldValue, int depth, bool positiveBonus) {
@@ -177,7 +226,7 @@ HeuristicScore HeuristicMoveOrderer::getNewHistoryValue(HeuristicScore oldValue,
     return oldValue + signedBonus - (oldValue * bonus / 16000);
 }
 
-void HeuristicMoveOrderer::updateQuietHeuristics(std::vector<Move>& moveList, int depth) {
+void HeuristicMoveOrderer::updateQuietHeuristics(const Board& board, std::vector<Move>& moveList, int depth) {
     //update killers & counter move
 
     //The move that caused a beta cut is the final one on the list given to us
@@ -187,28 +236,36 @@ void HeuristicMoveOrderer::updateQuietHeuristics(std::vector<Move>& moveList, in
         killerHistoryTwo[depth] = killerHistoryOne[depth];
         killerHistoryOne[depth] = finalMove;
     }
-    if(!board->getLastPlayedMove().isMoveNone()) {
-        counterMoves[flipColor(board->getTurn())][getPieceType(board->getPieceAt(board->getLastPlayedMove().getTo()))][board->getLastPlayedMove().getTo()] = finalMove;
+    if(!board.getLastPlayedMove().isMoveNone()) {
+        Piece pieceType;
+        if(board.getLastPlayedMove().getMoveType() == Move::Castle) {
+            pieceType = King;
+        } else {
+            pieceType = getPieceType(board.getPieceAt(board.getLastPlayedMove().getTo()));
+
+        }
+        counterMoves[flipColor(board.getTurn())][pieceType][board.getLastPlayedMove().getTo()] = finalMove;
     }
     //don't record a history heuristic if we didn't calculate anything meaningful
     if(depth == 0 || moveList.size() <= 3) {
         return;
     }
+    //set the butterfly history
     for(Move& move : moveList) {
-        quietHistory[board->getTurn()][move.getFrom()][move.getTo()] = getNewHistoryValue(quietHistory[board->getTurn()][move.getFrom()][move.getTo()], depth, move == finalMove);
+        quietHistory[board.getTurn()][getPieceType(board.getPieceAt(move.getFrom()))][move.getTo()] = getNewHistoryValue(quietHistory[board.getTurn()][getPieceType(board.getPieceAt(move.getFrom()))][move.getTo()], depth, move == finalMove);
     }
 }
 
-void HeuristicMoveOrderer::updateNoisyHeuristics(std::vector<Move>& moveList, Move& best, int depth) {
+void HeuristicMoveOrderer::updateNoisyHeuristics(const Board& board, std::vector<Move>& moveList, Move& best, int depth) {
     for(Move& move : moveList) {
         Piece capturedPiece;
         if(move.getMoveType() == Move::Normal) {
-            capturedPiece = getPieceType(board->getPieceAt(move.getTo()));
+            capturedPiece = getPieceType(board.getPieceAt(move.getTo()));
         } else { //enpassant or promotion, consider promotions as pawn captures because we have space in the array there
             capturedPiece = Pawn;
         }
         assert(capturedPiece != King);
-        captureHistory[getPieceType(board->getPieceAt(move.getFrom()))][move.getTo()][capturedPiece] = getNewHistoryValue(captureHistory[getPieceType(board->getPieceAt(move.getFrom()))][move.getTo()][capturedPiece], depth, move == best);
+        captureHistory[getPieceType(board.getPieceAt(move.getFrom()))][move.getTo()][capturedPiece] = getNewHistoryValue(captureHistory[getPieceType(board.getPieceAt(move.getFrom()))][move.getTo()][capturedPiece], depth, move == best);
     }
 }
 
@@ -233,7 +290,7 @@ Move HeuristicMoveOrderer::popFirstMove() {
 }
 
 void HeuristicMoveOrderer::setSeeMarginInOrdering(CentipawnScore seeMargin) {
-    this->currentSEEMargin = seeMargin;
+    currentSEEMargin = seeMargin;
 }
 
 void HeuristicMoveOrderer::seedMoveOrderer(Board& board, bool tacticalSearch) {
@@ -277,7 +334,7 @@ Move HeuristicMoveOrderer::pickNextMove(bool noisyOnly) {
     
             //set MVV-LVA and history for each noisy move
             for(Move& move : moveList) {
-                currentMoveScores[move] = getNoisyHeuristic(move);
+                currentMoveScores[move] = getNoisyHeuristic(*board, move);
             }
             [[fallthrough]];
         //if there's a good noisy move available, play it first
@@ -294,7 +351,7 @@ Move HeuristicMoveOrderer::pickNextMove(bool noisyOnly) {
                 }
 
                 //if the move doesn't pass SEE, it's a bad capture we should probably not consider
-                if(!staticExchangeEvaluation(bestMove, currentSEEMargin)) {
+                if(!staticExchangeEvaluation(*board, bestMove, currentSEEMargin)) {
                     currentMoveScores[bestMove] = -161660; //haha funny meme number
                     moveList.emplace_back(bestMove); //place it back at the back of the noisy list to be considered later
                     noisySize++;
@@ -349,7 +406,7 @@ Move HeuristicMoveOrderer::pickNextMove(bool noisyOnly) {
                 //set histories
                 for(int i = noisySize; i < noisySize + quietSize; ++i) {
                     Move& move = moveList[i];
-                    currentMoveScores[move] = getQuietHeuristic(move);
+                    currentMoveScores[move] = getQuietHeuristic(*board, move);
                 }
             }
             [[fallthrough]];    
@@ -397,16 +454,16 @@ std::unique_ptr<MoveOrderer> HeuristicMoveOrderer::clone() const {
     return std::make_unique<HeuristicMoveOrderer>(*this);
 }
 
-HeuristicScore HeuristicMoveOrderer::getNoisyHeuristic(const Move& move) {
+HeuristicScore HeuristicMoveOrderer::getNoisyHeuristic(const Board& board, const Move& move) {
     Piece capturedPiece;
     if(move.getMoveType() == Move::Normal) {
-        capturedPiece = getPieceType(board->getPieceAt(move.getTo()));
+        capturedPiece = getPieceType(board.getPieceAt(move.getTo()));
     } else { //enpassant or promotion, consider promotions as pawn captures because we have space in the array there
         capturedPiece = Pawn;
     }
     assert(capturedPiece != King);
-    HeuristicScore historyValue = captureHistory[getPieceType(board->getPieceAt(move.getFrom()))][move.getTo()][capturedPiece];
-    HeuristicScore mvvLvaValue = mvvLvaScores[capturedPiece] - mvvLvaScores[getPieceType(board->getPieceAt(move.getFrom()))];
+    HeuristicScore historyValue = captureHistory[getPieceType(board.getPieceAt(move.getFrom()))][move.getTo()][capturedPiece];
+    HeuristicScore mvvLvaValue = mvvLvaScores[capturedPiece] - mvvLvaScores[getPieceType(board.getPieceAt(move.getFrom()))];
     //promoting to queens is a thing that we should prioritize calculating
     if(move.getMoveType() == Move::Promotion && move.getPromoType() == Queen) {
         historyValue += NormalizationConstant;
@@ -414,8 +471,8 @@ HeuristicScore HeuristicMoveOrderer::getNoisyHeuristic(const Move& move) {
     return historyValue + mvvLvaValue + NormalizationConstant;
 }
 
-HeuristicScore HeuristicMoveOrderer::getQuietHeuristic(const Move& move) {
-    return quietHistory[board->getTurn()][move.getFrom()][move.getTo()];
+HeuristicScore HeuristicMoveOrderer::getQuietHeuristic(const Board& board, const Move& move) {
+    return quietHistory[board.getTurn()][getPieceType(board.getPieceAt(move.getFrom()))][move.getTo()];
 }
 
 bool HeuristicMoveOrderer::isAtQuiets() {

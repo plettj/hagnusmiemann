@@ -4,6 +4,7 @@
 #include "constants.h"
 #include "difficultylevel.h"
 #include "easydifficulty.h"
+#include "fullstrength.h"
 #include <iostream>
 #include <sstream>
 #include <random>
@@ -962,12 +963,10 @@ void TextInput::runProgram(IO& io, std::ostream& out) {
                             compPlayers.first = std::make_unique<LevelTwo>();
                             break;
                         case '3':
-                            // TODO
-                            compPlayers.first = std::make_unique<LevelTwo>();
+                            compPlayers.first = std::make_unique<FullStrength>(true);
                             break;
                         default: // '4'
-                            // TODO
-                            compPlayers.first = std::make_unique<LevelTwo>();
+                            compPlayers.first = std::make_unique<FullStrength>(false);
                             break;
                     }
                 }
@@ -980,12 +979,10 @@ void TextInput::runProgram(IO& io, std::ostream& out) {
                             compPlayers.second = std::make_unique<LevelTwo>();
                             break;
                         case '3':
-                            // TODO
-                            compPlayers.second = std::make_unique<LevelTwo>();
+                            compPlayers.second = std::make_unique<FullStrength>(true);
                             break;
                         default: // '4'
-                            // TODO
-                            compPlayers.second = std::make_unique<LevelTwo>();
+                            compPlayers.second = std::make_unique<FullStrength>(false);
                             break;
                     }
                 }
@@ -1105,8 +1102,8 @@ void TextInput::runProgram(IO& io, std::ostream& out) {
 
                                         if (prom == "Q") promPiece = Piece::Queen;
                                         else if (prom == "R") promPiece = Piece::Rook;
-                                        else if (prom == "B") promPiece = Piece::Rook;
-                                        else if (prom == "N") promPiece = Piece::Rook;
+                                        else if (prom == "B") promPiece = Piece::Bishop;
+                                        else if (prom == "N") promPiece = Piece::Knight;
                                         else {
                                             out << " ◌ Usage:  move [from] [to] [promotion]" << std::endl;
                                             out << " ◌ A valid promotion piece (Q, R, B, N) was not specified." << std::endl;
@@ -1123,7 +1120,7 @@ void TextInput::runProgram(IO& io, std::ostream& out) {
                                     bool fullyLegal = board.applyMove(move);
                                     if (fullyLegal) {
                                         Color turn = board.getTurn();
-
+                                        std::cout << EvalLevelFour{}.staticEvaluate(board) << std::endl;
                                         if (!board.countLegalMoves() || board.isDrawn()) { // Game is over
                                             if (board.isSideInCheck(turn)) { // In Check
                                                 if (turn) scores.first++;

@@ -3,13 +3,17 @@
 #include <cmath>
 #include "moveorder.h"
 
-FullStrength::FullStrength(bool useLevelThree) : DifficultyLevel{useLevelThree ? EvalLevelThree{} : EvalLevelThree{}, HeuristicMoveOrderer{}}, pastScores{}, useLevelThree{useLevelThree} {
+FullStrength::FullStrength(bool useLevelThree) : DifficultyLevel{EvalLevelFour{}, HeuristicMoveOrderer{}}, useLevelThree{useLevelThree}, pastScores{} {
+    lmrTable[0] = {0};
     for(int depth = 1; depth < LateMoveReductionDepth; ++depth) {
+        lmrTable[depth][0] = 0;
         for(int played = 1; played < LateMoveReductionDepth; ++played) {
             //Citation: these constants are used from my old engine badchessengine, from which I got them from Ethereal if I recall correctly
             lmrTable[depth][played] = (int)(0.75 + log(depth) * log(played) / 2.25);
         }
     }
+    lmpTable[0][0] = 0;
+    lmpTable[1][0] = 0;
     for(int depth = 1; depth < LateMovePruningDepth; ++depth) {
         lmpTable[0][depth] = (int)(2.5 + 2 * depth * depth / 4.5);
         lmpTable[1][depth] = (int)(4 + 4 * depth * depth / 4.5);
@@ -17,9 +21,10 @@ FullStrength::FullStrength(bool useLevelThree) : DifficultyLevel{useLevelThree ?
 }
 
 Move FullStrength::getMove(Board& board) {
-    //2 plies is really bad but it won't hang pieces
+    startingMove = board.getTotalPlies();
+    //3 plies is really bad but it won't hang pieces
     if(useLevelThree) {
-        alphabeta(board, -Infinite, Infinite, 2);
+        alphabeta(board, -Infinite, Infinite, 3);
     } else {
         alphabeta(board, -Infinite, Infinite, 13);
     }
@@ -37,6 +42,7 @@ CentipawnScore FullStrength::getDeltaPruningMargin(Board& board) {
             max = std::max(max, evaluator->getPieceValue(static_cast<Piece>(piece)));
         }
     }
+    return base + max;
 }
 
 CentipawnScore FullStrength::quiescence(Board& board, CentipawnScore alpha, CentipawnScore beta) {
@@ -62,10 +68,18 @@ CentipawnScore FullStrength::quiescence(Board& board, CentipawnScore alpha, Cent
     if(score + getDeltaPruningMargin(board) < alpha) {
         return alpha;
     }
-    score = std::max(score, alpha);
+    alpha = std::max(score, alpha);
+
+    MoveOrderer* moveOrderer;
+    if(moveOrderers.size() > searchPly) {
+        moveOrderer = moveOrderers[searchPly].get();
+    } else {
+        moveOrderers.emplace_back(HeuristicMoveOrderer{}.clone());
+        moveOrderer = moveOrderers[searchPly].get();
+    }
 
     moveOrderer->seedMoveOrderer(board, true);
-    dynamic_cast<HeuristicMoveOrderer&>(*moveOrderer).setSeeMarginInOrdering(std::max(1, alpha - score - QuiesSeeMargin));
+    HeuristicMoveOrderer::setSeeMarginInOrdering(std::max(1, alpha - score - QuiesSeeMargin));
     
     Move move;
     while(!(move = moveOrderer->pickNextMove(true)).isMoveNone()) {
@@ -76,10 +90,10 @@ CentipawnScore FullStrength::quiescence(Board& board, CentipawnScore alpha, Cent
         board.revertMostRecent();
 
         if(score > alpha) {
+            alpha = score;
             if(score >= beta) {
                 return beta;
             }
-            alpha = score;
         }
     }
     return alpha;
@@ -123,7 +137,7 @@ CentipawnScore FullStrength::alphabeta(Board& board, CentipawnScore alpha, Centi
     depth = std::max(depth, 0);
 
     CentipawnScore score = -Infinite;
-    CentipawnScore bestScore = -Checkmate;
+    CentipawnScore bestScore = -Infinite;
     CentipawnScore staticEval = board.isCurrentTurnInCheck() ? NoScore : evaluator->staticEvaluate(board);
     pastScores[searchPly] = staticEval;
 
@@ -151,6 +165,14 @@ CentipawnScore FullStrength::alphabeta(Board& board, CentipawnScore alpha, Centi
     std::vector<Move> quietsTried;
     std::vector<Move> noisyTried;
 
+    MoveOrderer* moveOrderer;
+    if(moveOrderers.size() > searchPly) {
+        moveOrderer = moveOrderers[searchPly].get();
+    } else {
+        moveOrderers.emplace_back(HeuristicMoveOrderer{}.clone());
+        moveOrderer = moveOrderers[searchPly].get();
+    }
+
     bool noisyOnly = false;
     moveOrderer->seedMoveOrderer(board, false);
 
@@ -167,11 +189,12 @@ CentipawnScore FullStrength::alphabeta(Board& board, CentipawnScore alpha, Centi
         if(bestScore > -Checkmate && depth <= LateMovePruningDepth && movesSeen >= lmpTable[improvedIndex][depth]) {
             noisyOnly = true;
         }
+        bool isMoveTactical = board.isMoveTactical(move);
 
-        HeuristicScore historyHeuristic = board.isMoveTactical(move) ? dynamic_cast<HeuristicMoveOrderer&>(*moveOrderer).getNoisyHeuristic(move) : dynamic_cast<HeuristicMoveOrderer&>(*moveOrderer).getQuietHeuristic(move);
+        HeuristicScore historyHeuristic = isMoveTactical ? HeuristicMoveOrderer::getNoisyHeuristic(board, move) : HeuristicMoveOrderer::getQuietHeuristic(board, move);
         //Quiet Move Pruning. If we prove that a line where we don't lose by force exists in this quiet move,
         //then skip it if its not interesting enough
-        if(!board.isMoveTactical(move) && bestScore > -Checkmate) {
+        if(!isMoveTactical && bestScore > -Checkmate) {
             int lmrDepth = std::max(0, depth - lmrTable[std::min(depth, 63)][std::min(depth, 63)]);
             int futilityMargin = FutilityMargin + lmrDepth * FutilityMarginAdded;
 
@@ -183,7 +206,7 @@ CentipawnScore FullStrength::alphabeta(Board& board, CentipawnScore alpha, Centi
 
         //Static Exchange Evaluation (see moveorder.h for in depth explanation)
         if(bestScore > -Checkmate && depth <= SeeDepth) {
-            if(!dynamic_cast<HeuristicMoveOrderer&>(*moveOrderer).staticExchangeEvaluation(move, board.isMoveTactical(move) ? SeeNoisyMargin : SeeQuietMargin)) {
+            if(!HeuristicMoveOrderer::staticExchangeEvaluation(board, move, isMoveTactical ? SeeNoisyMargin : SeeQuietMargin)) {
                 continue;
             }
         }
@@ -191,7 +214,7 @@ CentipawnScore FullStrength::alphabeta(Board& board, CentipawnScore alpha, Centi
             continue;
         }
         movesPlayed++;
-        if(board.isMoveTactical(move)) {
+        if(isMoveTactical) {
             noisyTried.emplace_back(move);
         } else {
             quietsTried.emplace_back(move);
@@ -229,7 +252,7 @@ CentipawnScore FullStrength::alphabeta(Board& board, CentipawnScore alpha, Centi
             //if we could not beat alpha, do a more minimal search in the future 
             //since it's highly likely we won't be able to beat it without reductions
             //(since heuristically, reduced moves are not likely to beat it)
-            doFullSearch = score > alpha && reduction != -1;
+            doFullSearch = score > alpha && reduction != 1;
         }
 
         if(doFullSearch) {
@@ -237,7 +260,7 @@ CentipawnScore FullStrength::alphabeta(Board& board, CentipawnScore alpha, Centi
         }
         //search more fully for for principal variation moves
         if(isPrincipalVariation && (movesPlayed == 1 || score > alpha)) {
-            score = -alphabeta(board, -alpha - 1, -alpha, depth - 1);
+            score = -alphabeta(board, -beta, -alpha, depth - 1);
         }
         board.revertMostRecent();
 
@@ -246,6 +269,7 @@ CentipawnScore FullStrength::alphabeta(Board& board, CentipawnScore alpha, Centi
             bestMove = move;
 
             if(score > alpha) {
+                alpha = score;
                 bestMoves[board.getBoardHash()] = bestMove;
 
                 //the search failed high, then we can stop looking
@@ -260,9 +284,9 @@ CentipawnScore FullStrength::alphabeta(Board& board, CentipawnScore alpha, Centi
     //Seed our future heuristics
     if(bestScore >= beta) {
         if(!board.isMoveTactical(move)) {
-            dynamic_cast<HeuristicMoveOrderer&>(*moveOrderer).updateQuietHeuristics(quietsTried, depth);
+            HeuristicMoveOrderer::updateQuietHeuristics(board, quietsTried, depth);
         }
-        dynamic_cast<HeuristicMoveOrderer&>(*moveOrderer).updateNoisyHeuristics(noisyTried, bestMove, depth);
+        HeuristicMoveOrderer::updateNoisyHeuristics(board, noisyTried, bestMove, depth);
     }
     //there were no moves we were able to play, i.e. no legal moves
     if(movesPlayed == 0) {

@@ -250,7 +250,23 @@ void Board::PrecomputedBinary::init() {
         AdjacentFilesMasks[file] &= ~getFile(file);
     }
 
+    for(int color = 0; color < NumColors; color++) {
+        for(int square = 0; square < NumSquares; square++) {
+            Bitboard files = AdjacentFilesMasks[getFileIndexOfSquare(getSquare(square))] | getFile(getFileIndexOfSquare(getSquare(square)));
+            Bitboard ranks = 0;
+            for(int rank = getRankIndexOfSquare(getSquare(square)); 0 <= rank && rank < NumRanks; White == color ? rank-- : rank++) {
+                ranks |= getRank(rank);
+            }
+            PassedPawnMasks[color][square] = ~ranks & files;
+        }
+    }
+
     hasBeenInitialized = true;
+}
+
+Bitboard Board::PrecomputedBinary::getPassedPawnMask(Color side, Square square) {
+    assert(square != None);
+    return PassedPawnMasks[side][square];
 }
 
 Bitboard Board::PrecomputedBinary::getBetweenSquaresMask(Square square1, Square square2) {
@@ -609,6 +625,7 @@ void Board::validateLegality() {
 	    }
     }
     kingAttackers = getAllKingAttackers();
+    initMaterialEval();
 }
 
 std::string Board::getFEN() const {
@@ -731,19 +748,18 @@ void Board::PrecomputedBinary::populateHashTable(HashEntry* table, Square square
     }
 }
 
-void Board::evalAddPiece(CentipawnScore& eval, ColorPiece piece, Square location) {
-    eval += psqt.at(piece)[location];
+void Board::evalAddPiece(ColorPiece piece, Square location) {
+    currentEval += psqt.at(piece)[location];
 }
 
-void Board::evalRemovePiece(CentipawnScore& eval, ColorPiece piece, Square location) {
-    eval -= psqt.at(piece)[location];
+void Board::evalRemovePiece(ColorPiece piece, Square location) {
+    currentEval -= psqt.at(piece)[location];
 }
 
-void Board::initMaterialEval(CentipawnScore& eval) {
-    eval = 0;
-
+void Board::initMaterialEval() {
+    currentEval = 0;
     for (int i = 0; i < NumSquares; ++i) {
-        evalAddPiece(eval, squares[getSquare(i)], getSquare(i));
+        evalAddPiece(squares[getSquare(i)], getSquare(i));
     }
 }
 
@@ -784,13 +800,7 @@ void Board::applyMoveWithUndo(Move& move, UndoData& undo) {
     undo.enpassantSquare = enpassantSquare;
     undo.plies = plies;
     undo.move = move;
-
-    // init psqt for the current move
-    if (!fullmoves) {
-        initMaterialEval(undo.currentEval);
-    } else {
-        undo.currentEval = undoStack[fullmoves-1].currentEval;
-    }
+    undo.currentEval = currentEval;
 
     //TODO: store hash in history
     fullmoves++;
@@ -822,21 +832,21 @@ void Board::applyMoveWithUndo(Move& move, UndoData& undo) {
     // if castling permissions are different, reflect this in zobrist
     Bitboard rookChanges = castlingRooks & (~undo.castlingRooks);
     if ((rookChanges & sides[White] & FileA) != 0) {
-        ZobristNums::changeCastleRights(undo.positionHash, White, true);
+        ZobristNums::changeCastleRights(positionHash, White, true);
     }
     if ((rookChanges & sides[Black] & FileA) != 0) {
-        ZobristNums::changeCastleRights(undo.positionHash, White, false);
+        ZobristNums::changeCastleRights(positionHash, White, false);
     }
     if ((rookChanges & sides[White] & FileH) != 0) {
-        ZobristNums::changeCastleRights(undo.positionHash, Black, true);
+        ZobristNums::changeCastleRights(positionHash, Black, true);
     }
     if ((rookChanges & sides[Black] & FileH) != 0) {
-        ZobristNums::changeCastleRights(undo.positionHash, Black, false);
+        ZobristNums::changeCastleRights(positionHash, Black, false);
     }
 
     //flip whose turn it is
     turn = flipColor(turn);
-    ZobristNums::flipColor(undo.positionHash);
+    ZobristNums::flipColor(positionHash);
     kingAttackers = getAllKingAttackers();
 }
 
@@ -854,19 +864,19 @@ void Board::applyNormalMoveWithUndo(Move& move, UndoData& undo) {
     sides[turn] ^= (1ull << move.getFrom()) ^ (1ull << move.getTo());
 
     //zobrist hash update
-    ZobristNums::changePiece(undo.positionHash, getColorOfPiece(from), getPieceType(from), move.getFrom());
-    ZobristNums::changePiece(undo.positionHash, getColorOfPiece(from), getPieceType(from), move.getTo());
+    ZobristNums::changePiece(positionHash, getColorOfPiece(from), getPieceType(from), move.getFrom());
+    ZobristNums::changePiece(positionHash, getColorOfPiece(from), getPieceType(from), move.getTo());
 
     // material eval update
-    evalAddPiece(undo.currentEval, from, move.getTo());
-    evalRemovePiece(undo.currentEval, from, move.getFrom());
+    evalAddPiece(from, move.getTo());
+    evalRemovePiece(from, move.getFrom());
 
     //if we captured
     if(to != Empty) {
         pieces[getPieceType(to)] ^= (1ull << move.getTo());
         sides[flipColor(turn)] ^= (1ull << move.getTo());
-        ZobristNums::changePiece(undo.positionHash, getColorOfPiece(to), getPieceType(to), move.getTo());
-        evalRemovePiece(undo.currentEval, to, move.getTo());
+        ZobristNums::changePiece(positionHash, getColorOfPiece(to), getPieceType(to), move.getTo());
+        evalRemovePiece(to, move.getTo());
     }
 
     squares[move.getFrom()] = Empty;
@@ -903,16 +913,16 @@ void Board::applyCastlingMoveWithUndo(Move& move, Board::UndoData& undo) {
     Square rookTo = getRookCastlingSquare(kingFrom, rookFrom);
 
     //zobrist hash update
-    ZobristNums::changePiece(undo.positionHash, getColorOfPiece(squares[move.getFrom()]), King, kingTo);
-    ZobristNums::changePiece(undo.positionHash, getColorOfPiece(squares[move.getFrom()]), King, kingFrom);
-    ZobristNums::changePiece(undo.positionHash, getColorOfPiece(squares[move.getFrom()]), Rook, rookTo);
-    ZobristNums::changePiece(undo.positionHash, getColorOfPiece(squares[move.getFrom()]), Rook, rookFrom);
+    ZobristNums::changePiece(positionHash, getColorOfPiece(squares[move.getFrom()]), King, kingTo);
+    ZobristNums::changePiece(positionHash, getColorOfPiece(squares[move.getFrom()]), King, kingFrom);
+    ZobristNums::changePiece(positionHash, getColorOfPiece(squares[move.getFrom()]), Rook, rookTo);
+    ZobristNums::changePiece(positionHash, getColorOfPiece(squares[move.getFrom()]), Rook, rookFrom);
 
     //material eval update
-    evalAddPiece(undo.currentEval, squares[kingFrom], kingTo);
-    evalRemovePiece(undo.currentEval, squares[kingFrom], kingFrom);
-    evalAddPiece(undo.currentEval,squares[rookFrom], rookTo);
-    evalRemovePiece(undo.currentEval, squares[rookFrom], rookFrom);
+    evalAddPiece(squares[kingFrom], kingTo);
+    evalRemovePiece(squares[kingFrom], kingFrom);
+    evalAddPiece(squares[rookFrom], rookTo);
+    evalRemovePiece(squares[rookFrom], rookFrom);
     
     pieces[King] ^= (1ull << kingFrom) ^ (1ull << kingTo);
     sides[turn] ^= (1ull << kingFrom) ^ (1ull << kingTo);
@@ -937,14 +947,14 @@ void Board::applyEnpassantMoveWithUndo(Move& move, Board::UndoData& undo) {
     Square capturedSquare = getSquare(move.getTo() - 8 + (turn << 4));
 
     //zobrist hash update
-    ZobristNums::changePiece(undo.positionHash, getColorOfPiece(squares[move.getFrom()]), Pawn, move.getTo());
-    ZobristNums::changePiece(undo.positionHash, getColorOfPiece(squares[move.getFrom()]), Pawn, move.getFrom());
-    ZobristNums::changePiece(undo.positionHash, flipColor(getColorOfPiece(squares[move.getFrom()])), Pawn, capturedSquare);
+    ZobristNums::changePiece(positionHash, getColorOfPiece(squares[move.getFrom()]), Pawn, move.getTo());
+    ZobristNums::changePiece(positionHash, getColorOfPiece(squares[move.getFrom()]), Pawn, move.getFrom());
+    ZobristNums::changePiece(positionHash, flipColor(getColorOfPiece(squares[move.getFrom()])), Pawn, capturedSquare);
 
     //materialEval update
-    evalAddPiece(undo.currentEval, squares[move.getFrom()], move.getTo());
-    evalRemovePiece(undo.currentEval, squares[move.getFrom()], move.getFrom());
-    evalRemovePiece(undo.currentEval, squares[capturedSquare], capturedSquare);
+    evalAddPiece(squares[move.getFrom()], move.getTo());
+    evalRemovePiece(squares[move.getFrom()], move.getFrom());
+    evalRemovePiece(squares[capturedSquare], capturedSquare);
     
     //en passant is a capture, so reset the fifty move rule
     plies = 0;
@@ -965,12 +975,12 @@ void Board::applyPromotionMoveWithUndo(Move& move, Board::UndoData& undo) {
     ColorPiece capturedPiece = squares[move.getTo()];
 
     //zobrist hash update
-    ZobristNums::changePiece(undo.positionHash, getColorOfPiece(promotedPiece), Pawn, move.getFrom());
-    ZobristNums::changePiece(undo.positionHash, getColorOfPiece(promotedPiece), move.getPromoType(), move.getTo());
+    ZobristNums::changePiece(positionHash, getColorOfPiece(promotedPiece), Pawn, move.getFrom());
+    ZobristNums::changePiece(positionHash, getColorOfPiece(promotedPiece), move.getPromoType(), move.getTo());
 
     //material eval
-    evalAddPiece(undo.currentEval, promotedPiece, move.getTo());
-    evalRemovePiece(undo.currentEval, squares[move.getFrom()], move.getFrom());
+    evalAddPiece(promotedPiece, move.getTo());
+    evalRemovePiece(squares[move.getFrom()], move.getFrom());
 
     //promotion resets the fifty move rule
     plies = 0;
@@ -979,8 +989,8 @@ void Board::applyPromotionMoveWithUndo(Move& move, Board::UndoData& undo) {
     sides[turn] ^= (1ull << move.getFrom()) ^ (1ull << move.getTo());
 
     if(capturedPiece != Empty) {
-        ZobristNums::changePiece(undo.positionHash, getColorOfPiece(capturedPiece), getPieceType(capturedPiece), move.getTo());
-        evalRemovePiece(undo.currentEval, squares[move.getFrom()], move.getFrom());
+        ZobristNums::changePiece(positionHash, getColorOfPiece(capturedPiece), getPieceType(capturedPiece), move.getTo());
+        evalRemovePiece(squares[move.getTo()], move.getTo());
         pieces[getPieceType(capturedPiece)] ^= (1ull << move.getTo());
         sides[getColorOfPiece(capturedPiece)] ^= (1ull << move.getTo());
     }
@@ -1011,6 +1021,7 @@ void Board::revertMove(UndoData& undo) {
     plies = undo.plies;
     castlingRooks = undo.castlingRooks;
     Move& move = undo.move;
+    currentEval = undo.currentEval;
 
     turn = flipColor(turn);
     fullmoves--;
@@ -1084,10 +1095,13 @@ void Board::revertMove(UndoData& undo) {
 }
 
 bool Board::isMovePseudoLegal(Move& move) {
+    if(move.isMoveNone() || squares[move.getFrom()] == Empty) {
+        return false;
+    }
     Piece fromType = getPieceType(squares[move.getFrom()]);
 
     //The following are illegal moves that are theoretically valid as moves in our encoding
-    if(move.isMoveNone() || getColorOfPiece(squares[move.getFrom()]) != turn || (move.getPromoType() != Knight && !move.isMovePromotion()) || (move.getMoveType() == Move::MoveType::Castle && fromType != King)) {
+    if(getColorOfPiece(squares[move.getFrom()]) != turn || (move.getPromoType() != Knight && !move.isMovePromotion()) || (move.getMoveType() == Move::MoveType::Castle && fromType != King)) {
         return false;
     }
 
@@ -1399,7 +1413,7 @@ int Board::generateAllLegalMoves(std::vector<Move>& moveList) {
     return moveList.size() - startSize;
 }
 
-Move Board::getLastPlayedMove() {
+Move Board::getLastPlayedMove() const {
     if(undoStack.size() == 0) {
         return Move{};
     }
@@ -1415,6 +1429,12 @@ int Board::getTotalPlies() const {
 }
 
 Piece Board::getLastMovedPiece() const {
+    if(undoStack.back().move.getMoveType() == Move::Castle) {
+        return King;
+    }
+    if(squares[undoStack.back().move.getTo()] == Empty) {
+        std::cout << "HERE" << std::endl;
+    }
     return getPieceType(squares[undoStack.back().move.getTo()]);
 }
 
@@ -1436,4 +1456,99 @@ bool Board::currentSideHasPiece(Piece piece) const {
 
 uint64_t Board::getBoardHash() const {
     return positionHash;
+}
+
+int Board::getCurrentPsqt() const {
+    return currentEval;
+}
+
+bool Board::isBoardMaterialDraw() const {
+    //never a draw with pawns or queens
+    if(pieces[Pawn] != 0 || pieces[Queen] != 0) {
+        return false;
+    }
+
+    if(pieces[Rook] == 0) {
+        if(pieces[Bishop] == 0) {
+            //0-2 knights+king vs 0-2knights+king is draw
+            return popCnt(pieces[Knight] & sides[White]) <= 2 && popCnt(pieces[Knight] & sides[Black]) <= 2;
+        } else if(pieces[Knight] == 0) {
+            //draw unless one side has two extra bishops
+            return abs(popCnt(pieces[Bishop] & sides[White]) - popCnt(pieces[Bishop] & sides[Black])) < 2;
+        } else if((popCnt(pieces[Knight] & sides[White]) <= 2 && popCnt(pieces[Bishop] & sides[Black]) == 1) || (popCnt(pieces[Knight] & sides[Black]) <= 2 && popCnt(pieces[Bishop] & sides[White]) == 1)) {
+            //draw if 1-2 knights vs 1 b
+            return true;
+        }
+    } else if(popCnt(pieces[Rook] & sides[White]) == 1 && popCnt(pieces[Rook] & sides[Black]) == 1) {
+        //exactly 1 rook each, draw if versus 0-1 minors
+        return popCnt((pieces[Knight] | pieces[Bishop]) & sides[White]) <= 1 && popCnt((pieces[Knight] | pieces[Bishop]) & sides[Black]);
+    } else if(popCnt(pieces[Rook]) == 1) {
+        //1 rook draws vs 1-2 minors
+        if((pieces[Rook] & sides[White]) != 0) {
+            int blackMinors = popCnt((pieces[Bishop] | pieces[Knight]) & sides[Black]);
+            return popCnt((pieces[Rook] | pieces[Bishop] | pieces[Knight]) & sides[White]) == 1 && blackMinors >= 1 && blackMinors <= 2;
+        } else {
+            int whiteMinors = popCnt((pieces[Bishop] | pieces[Knight]) & sides[White]);
+            return popCnt((pieces[Rook] | pieces[Bishop] | pieces[Knight]) & sides[Black]) == 1 && whiteMinors >= 1 && whiteMinors <= 2;
+        }
+    }
+    return false;
+}
+
+int Board::getSidePieceCount(Color side, Piece piece) const {
+    return popCnt(sides[side] & pieces[piece]);
+}
+
+bool Board::isFileOpen(Index fileIndex) const {
+    return (getFile(fileIndex) & pieces[Pawn]) == 0;
+}
+
+bool Board::isFileSemiOpen(Color side, Index fileIndex) const {
+    return (getFile(fileIndex) & pieces[Pawn] & sides[side]) == 0;
+}
+
+int Board::getNumberOfIsolatedPawns(Color side) const {
+    Bitboard pawns = pieces[Pawn] & sides[side];
+    int count = 0;
+    while(pawns != 0) {
+        Square square = getSquare(popLsb(pawns));
+        if((PrecomputedBinary::getBinary().getAdjacentFilesMask(getFileIndexOfSquare(square)) & pieces[Pawn] & sides[side]) == 0) {
+            count++;
+        }
+    }
+    return count;
+}
+
+int Board::getNumberOfPassedPawns(Color side) const {
+    Bitboard pawns = pieces[Pawn] & sides[side];
+    int count = 0;
+    while(pawns != 0) {
+        Square square = getSquare(popLsb(pawns));
+        if((PrecomputedBinary::getBinary().getPassedPawnMask(side, square) & pieces[Pawn] & sides[flipColor(side)]) == 0) {
+            count++;
+        }
+    }
+    return count;
+}
+
+int Board::getNumberOfPiecesOnOpenFile(Color side, Piece piece) const {
+    Bitboard pieceBoard = pieces[piece] & sides[side];
+    int count = 0;
+    while(pieceBoard != 0) {
+        if(isFileOpen(getFileIndexOfSquare(getSquare(popLsb(pieceBoard))))) {
+            count++;
+        }
+    }
+    return count;
+}
+
+int Board::getNumberOfPiecesOnSemiOpenFile(Color side, Piece piece) const {
+    Bitboard pieceBoard = pieces[piece] & sides[side];
+    int count = 0;
+    while(pieceBoard != 0) {
+        if(isFileSemiOpen(side, getFileIndexOfSquare(getSquare(popLsb(pieceBoard))))) {
+            count++;
+        }
+    }
+    return count;
 }

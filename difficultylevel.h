@@ -6,6 +6,7 @@
 #include "moveorder.h"
 #include "evaluator.h"
 #include <memory>
+#include <vector>
 
 /**
  * A class representing the difficulty level of an AI opponent.
@@ -18,12 +19,14 @@
  */
 class DifficultyLevel {
 public:
-    DifficultyLevel(const Evaluator& evaluator, const MoveOrderer& moveOrderer) : evaluator{evaluator.clone()}, moveOrderer{moveOrderer.clone()} {}
+    DifficultyLevel(const Evaluator& evaluator, const MoveOrderer& moveOrderer) : evaluator{evaluator.clone()} {
+        moveOrderers.emplace_back(moveOrderer.clone());
+    }
     virtual Move getMove(Board& board) = 0; 
     virtual ~DifficultyLevel() = default;
 protected:
     std::unique_ptr<Evaluator> evaluator;
-    std::unique_ptr<MoveOrderer> moveOrderer;
+    std::vector<std::unique_ptr<MoveOrderer> > moveOrderers;
 };
 
 #endif

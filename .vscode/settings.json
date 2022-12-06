@@ -59,6 +59,7 @@
         "mutex": "cpp",
         "condition_variable": "cpp",
         "ctime": "cpp",
-        "ratio": "cpp"
+        "ratio": "cpp",
+        "thread": "cpp"
     }
 }

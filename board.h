@@ -122,9 +122,10 @@ public:
     Color getTurn() const;
     void setTurn(Color turn);
 
-    void evalAddPiece(CentipawnScore& eval, ColorPiece piece, Square location);
-    void evalRemovePiece(CentipawnScore& eval, ColorPiece piece, Square location);
-    void initMaterialEval(CentipawnScore& eval);
+    void evalAddPiece(ColorPiece piece, Square location);
+    void evalRemovePiece(ColorPiece piece, Square location);
+    void initMaterialEval();
+    CentipawnScore getCurrentPsqt() const;
 
     bool hasNonPawns(Color side) const;
     bool isDrawn() const;
@@ -189,10 +190,22 @@ public:
      */
     bool isCurrentTurnInCheck() const;
     
-    Move getLastPlayedMove();
+    Move getLastPlayedMove() const;
     bool isMoveTactical(const Move& move);
     bool currentSideAboutToPromote() const;
     bool currentSideHasPiece(Piece piece) const;
+    /**
+     * Returns if the board is drawn theoretically (not necessarily insufficient material)
+     */
+    bool isBoardMaterialDraw() const;
+    
+    int getSidePieceCount(Color side, Piece piece) const;
+    bool isFileOpen(Index fileIndex) const;
+    bool isFileSemiOpen(Color side, Index fileIndex) const;
+    int getNumberOfPiecesOnOpenFile(Color side, Piece piece) const;
+    int getNumberOfPiecesOnSemiOpenFile(Color side, Piece piece) const;
+    int getNumberOfIsolatedPawns(Color side) const;
+    int getNumberOfPassedPawns(Color side) const;
 
     int getPlies() const;
     int getTotalPlies() const;
@@ -247,6 +260,7 @@ private:
         Bitboard getQueenAttacksFromSquare(Square square, Bitboard occupiedBoard);
         Bitboard getBetweenSquaresMask(Square square1, Square square2);
         Bitboard getAdjacentFilesMask(Index fileIndex);
+        Bitboard getPassedPawnMask(Color side, Square square);
     private: 
         bool hasBeenInitialized = false;
         PrecomputedBinary();
@@ -256,6 +270,7 @@ private:
         
         MultiArray<Bitboard, NumSquares, NumSquares> BetweenSquaresMasks;
         std::array<Bitboard, NumFiles> AdjacentFilesMasks;
+        MultiArray<Bitboard, NumColors, NumSquares> PassedPawnMasks;
         /**
          * The following are what correspond to the functionality to determine (very efficiently!) if a square is attacked or not.
          * These are arrays of bitboards corresponding to where we can attack with a piece on a given square.
@@ -327,6 +342,8 @@ private:
     //Bitboards corresponding to rooks that can castle (non promoted ones)
     Bitboard castlingRooks;
     std::array<Bitboard, NumSquares> castleMasks;
+    //Current track of piece values
+    CentipawnScore currentEval;
 
     //the current turn, half move counter (called plies in chess programming land), and full move counter (1 move = 2 plies)
     Color turn;

@@ -60,17 +60,18 @@ public:
      * because they can choose to stop and just be up a queen for a pawn. 
      * Returns whether the side that plays the move wins the trade or not.
      */
-    bool staticExchangeEvaluation(const Move& move, CentipawnScore margin);
-    void setSeeMarginInOrdering(CentipawnScore margin);
+    static bool staticExchangeEvaluation(Board& board, const Move& move, CentipawnScore margin);
+    static void setSeeMarginInOrdering(CentipawnScore margin);
 
-    void updateQuietHeuristics(std::vector<Move>& moveList, int depth);
-    void updateNoisyHeuristics(std::vector<Move>& moveList, Move& best, int depth);
+    static void init();
+    static void updateQuietHeuristics(const Board& board, std::vector<Move>& moveList, int depth);
+    static void updateNoisyHeuristics(const Board& board, std::vector<Move>& moveList, Move& best, int depth);
     void seedMoveOrderer(Board& board, bool tacticalSearch) final override;
     Move pickNextMove(bool noisyOnly) final override;
     std::unique_ptr<MoveOrderer> clone() const override;
 
-    HeuristicScore getNoisyHeuristic(const Move& move);
-    HeuristicScore getQuietHeuristic(const Move& move);
+    static HeuristicScore getNoisyHeuristic(const Board& board, const Move& move);
+    static HeuristicScore getQuietHeuristic(const Board& board, const Move& move);
     bool isAtQuiets();
 private:
     std::unordered_map<Move, HeuristicScore> currentMoveScores;
@@ -81,51 +82,19 @@ private:
 
     Move popBestMove(int beginRange, int endRange);
     Move popFirstMove();
-    HeuristicScore getNewHistoryValue(HeuristicScore oldValue, int depth, bool positiveBonus);
+    static HeuristicScore getNewHistoryValue(HeuristicScore oldValue, int depth, bool positiveBonus);
 
-    CentipawnScore currentSEEMargin;
     int noisySize;
     int quietSize;
     //TODO: Transposition table
 
-
     /*
      * The following are moves that are (heuristically) good to check first if the situation arises,
-     * as they are likely to produce an alpha beta prune.
-     */
-
-    /**
-     * Killer moves are refutations that produced beta cutoffs at the same depth in adjacent nodes.
-     * These are heuristically good to check, because odds are, a move that refutes moves in sibling positions
-     * will also refute moves in our position.
-     * Ordered by depth. 
+     * as they are likely to produce an alpha beta prune (see explanation in .cc file)
      */
     Move killerOne;
-    std::array<Move, MaxDepth> killerHistoryOne;
     Move killerTwo;
-    std::array<Move, MaxDepth> killerHistoryTwo;
-    /**
-     * Indexed by [pieceColor][piece][toSquare].
-     * Counter moves are refutations to moving a certain piece to a certain square,
-     * since usually something that refutes a move like that will repeatedly refute it.
-     */
-    TripleArray<Move, NumColors, NumPieces, NumSquares> counterMoves;
     Move counter;
-
-    /**
-     * Indexed by [pieceColor][piece][toSquare]. 
-     * A history of how good moving a piece to a square is as a move in past evaluations,
-     * since this is a heuristically good past indicator of how good a move is to be.
-     */
-    TripleArray<HeuristicScore, NumColors, NumPieces, NumSquares> quietHistory;
-
-    /**
-     * Indexed by [aggressor][toSquare][victim].
-     * Most Valuable Victim-Least Valuable Aggressor (MVV-LVA) combined with a history-style heuristic.
-     * The history heuristic is as described above, we combine this with MVV-LVA,
-     * which is a heuristic that says capturing things worth a lot with pieces not worth a lot is a good idea.
-     */
-    TripleArray<HeuristicScore, NumPieces, NumSquares, NumPieces> captureHistory;
 
     //This normalizes the scores to be centered approximately around 0
     static const HeuristicScore NormalizationConstant = 66666;
