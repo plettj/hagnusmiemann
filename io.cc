@@ -281,8 +281,6 @@ void GraphicalOutput::display(Board& board, std::array<bool, 4> settings, GameSt
     Square kingSquare = board.getKing();
     Color turn = board.getTurn();
 
-    int color = setup ? 5 : 2; // Setup mode is Red
-
     int width = window->getWidth();
     int height = window->getHeight();
 
@@ -786,6 +784,9 @@ void printSetting(std::ostream& out, int setting, bool currValue) {
  * ╞╴ ./chess
  * │         Captures programmers who have no short-term memory.
  * │         N = 1
+ * ╞╴ close
+ * │         Force-quits the current game, without awarding points.
+ * │         N = 1
  * ╞╴ exit
  * │         Immediately terminates the program.
  * │         N = 0
@@ -827,7 +828,7 @@ void printSetting(std::ostream& out, int setting, bool currValue) {
  * │         N = 0
  * ╞╴ secret
  * │         Literally just doesn't do anything.
- * │         N = 35 (including 22 sub-commands)
+ * │         N = 1 (N = 34, C = 22, inside the story)
  * ╞╴ settings
  * │         Displays the current settings.
  * │         N = 0
@@ -875,11 +876,11 @@ void printSetting(std::ostream& out, int setting, bool currValue) {
  * │         N = 2
  * ╰─────╴
  * 
- * Total Error Checks = Sum of all N
- * N = 104
+ * Total Error Checks = Normal error-checks + "secret" error-checks:
+ * N = 71 + 34 = 105
  * 
- * Total Number of Commands = Normal commands + Secret commands
- * C = 30 + 22 = 52
+ * Total Number of Commands = Normal commands + "secret" commands:
+ * C = 31 + 22 = 53
  * 
 */
 void TextInput::runProgram(IO& io, std::ostream& out) {
@@ -1399,6 +1400,8 @@ void TextInput::runProgram(IO& io, std::ostream& out) {
             out << " ◌ ╭─────╴" << std::endl;
             out << " ◌ ╞╴ ./chess" << std::endl;
             out << " ◌ │         Captures programmers who have no short-term memory." << std::endl;
+            out << " ◌ ╞╴ close" << std::endl;
+            out << " ◌ │         Force-quits the current game, without awarding points." << std::endl;
             out << " ◌ ╞╴ exit" << std::endl;
             out << " ◌ │         Immediately terminates the program." << std::endl;
             out << " ◌ ╞╴ game [white] [black]" << std::endl;
@@ -1410,7 +1413,7 @@ void TextInput::runProgram(IO& io, std::ostream& out) {
             out << " ◌ ╞╴ help" << std::endl;
             out << " ◌ │         Opens this manual." << std::endl;
             out << " ◌ ╞╴ make" << std::endl;
-            out << " ◌ │         Captures programmers who forgot to CTRL+C!" << std::endl;
+            out << " ◌ │         Captures programmers who forgot to CTRL+C." << std::endl;
             out << " ◌ ╞╴ move" << std::endl;
             out << " ◌ │         Tells the computer to compute and play its move." << std::endl;
             out << " ◌ ╞╴ move [from] [to] [promotion?]" << std::endl;
@@ -1533,6 +1536,16 @@ void TextInput::runProgram(IO& io, std::ostream& out) {
             break;
         } else if (command == "exit") {
             return;
+        } else if (command == "close") {
+            if (isGameRunning) {
+                isGameRunning = false;
+                state = GameState::Neutral;
+                board = Board::createBoardFromFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
+                board.validateLegality();
+                out << " ◌ Game successfully closed." << std::endl;
+            } else {
+                out << " ◌ No game is currently in progress." << std::endl;
+            }
         } else if (command == "print") {
             if (isGameRunning) {
                 io.fullDisplay(board, state, totalGames, players);
