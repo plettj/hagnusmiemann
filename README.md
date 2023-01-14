@@ -1,7 +1,6 @@
 # Hagnus Miemann Chess Engine
 
-Alex, Josiah, and Justin have created the greatest chess engine ever built for a UWaterloo second-year CS course.
-Here it is.
+Alex, Josiah, and Justin have created the greatest chess engine ever built for a UWaterloo second-year course.
 
 We are lazy and don't want to describe what it does, so here is a copy-paste of the manual:
 
