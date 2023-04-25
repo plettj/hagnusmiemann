@@ -6,9 +6,9 @@ We are lazy and don't want to describe what it does, so here is a copy-paste of 
 
 ### Manual
 ```
- ◌ ╭──────────────────────────────────────╮" << std::endl;
- ◌ │ HAGNUS MIEMANN CHESS ENGINE - Manual │" << std::endl;
- ◌ ╰──────────────────────────────────────╯" << std::endl;
+ ◌ ╭──────────────────────────────────────╮
+ ◌ │ HAGNUS MIEMANN CHESS ENGINE - Manual │
+ ◌ ╰──────────────────────────────────────╯
  ◌ ╭─────╴
  ◌ ╞╴ ./chess
  ◌ │         Captures programmers who have no short-term memory.
