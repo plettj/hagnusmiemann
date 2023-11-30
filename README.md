@@ -2,7 +2,13 @@
 
 Alex, Josiah, and Justin have created the greatest chess engine ever built for a UWaterloo second-year course.
 
-We are lazy and don't want to describe what it does, so here is a copy-paste of the manual:
+### Screenshots
+
+![20 5-HagnusMiemann](https://github.com/plettj/hagnusmiemann/assets/65507438/fb0f0123-42fa-4fc8-a864-9a3b89787337)
+
+![20-HagnusMiemann](https://github.com/plettj/hagnusmiemann/assets/65507438/f9eb1e1f-9ff7-4991-8e43-783b944552c1)
+
+![20 1-HagnusMiemann](https://github.com/plettj/hagnusmiemann/assets/65507438/0a8a43ae-1947-4b4f-9c11-520ea29d901a)
 
 ### Manual
 ```
