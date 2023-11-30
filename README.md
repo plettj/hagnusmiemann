@@ -4,10 +4,11 @@ Alex, Josiah, and Justin have created the greatest chess engine ever built for a
 
 ### Screenshots
 <p float="left" align="center">
-<img src="https://github.com/plettj/hagnusmiemann/assets/65507438/fb0f0123-42fa-4fc8-a864-9a3b89787337" alt="Hagnus Miemann Title Screen" height="200px"/>
-<img src="https://github.com/plettj/hagnusmiemann/assets/65507438/f9eb1e1f-9ff7-4991-8e43-783b944552c1" alt="Hagnus Miemann Chess Board" height="200px"/>
-<img src="https://github.com/plettj/hagnusmiemann/assets/65507438/0a8a43ae-1947-4b4f-9c11-520ea29d901a" alt="Hagnus Miemann Gameplay Screenshot" height="200px"/>
+<img src="https://github.com/plettj/hagnusmiemann/assets/65507438/fb0f0123-42fa-4fc8-a864-9a3b89787337" alt="Hagnus Miemann Title Screen" height="220px"/>
+<img src="https://github.com/plettj/hagnusmiemann/assets/65507438/f9eb1e1f-9ff7-4991-8e43-783b944552c1" alt="Hagnus Miemann Chess Board" height="220px"/>
+<img src="https://github.com/plettj/hagnusmiemann/assets/65507438/0a8a43ae-1947-4b4f-9c11-520ea29d901a" alt="Hagnus Miemann Gameplay Screenshot" height="220px"/>
 </p>
+
 ### Manual
 ```
  ◌ ╭──────────────────────────────────────╮
